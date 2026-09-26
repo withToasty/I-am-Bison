@@ -26,8 +26,11 @@ export class Herd {
     this.centerY = spawnY;
 
     for (let i = 0; i < count; i++) {
-      const angle = (i / count) * Math.PI * 2 + Phaser.Math.FloatBetween(-0.2, 0.2);
-      const radius = Phaser.Math.FloatBetween(0, GAME_CONFIG.spawnClusterRadius);
+      // A lone bison has no neighbors to avoid overlapping, so there's no
+      // reason to scatter it - and doing so was pure luck-of-the-draw over
+      // whether it spawned lined up with the nearest obstacle.
+      const angle = count === 1 ? 0 : (i / count) * Math.PI * 2 + Phaser.Math.FloatBetween(-0.2, 0.2);
+      const radius = count === 1 ? 0 : Phaser.Math.FloatBetween(0, GAME_CONFIG.spawnClusterRadius);
       const x = spawnX + Math.cos(angle) * radius;
       const y = spawnY + Math.sin(angle) * radius;
       const bison = new Bison(scene, x, y);
@@ -128,18 +131,7 @@ export class Herd {
       }
     }
 
-    if (stragglers.length > 0) {
-      for (const lost of stragglers) {
-        lost.vx = 0;
-        lost.vy = 0;
-        lost.gfx.setFillStyle(GAME_CONFIG.strandedBisonColor);
-        this.strandedBison.push(lost);
-      }
-      const lostSet = new Set(stragglers);
-      this.bison = this.bison.filter((b) => !lostSet.has(b));
-      this.totalLost += stragglers.length;
-    }
-
+    this.strand(stragglers);
     this.updateCenter();
   }
 
@@ -175,34 +167,46 @@ export class Herd {
     return joined.length;
   }
 
-  // Rocks are solid and unbreakable (spec 12.1): a colliding bison is shoved
-  // clear and knocked outward. That's generally a recoverable bump, but hard
-  // enough - or already near the edge of the herd - it can push a bison past
-  // lostRadius and into a real separation, same as an aggressive turn.
+  // Rocks are solid and unbreakable (spec 12.1): a colliding bison is
+  // normally shoved clear and knocked outward, a recoverable bump. But a
+  // herd too small to absorb the hit (smallHerdThreshold) can't shrug it
+  // off - the collision costs it that bison outright, same treatment as a
+  // straggler, which is what makes staying tiny genuinely dangerous.
   handleRockCollisions(rocks: Rock[]): void {
+    const tooSmallToSurvive = this.bison.length <= GAME_CONFIG.smallHerdThreshold;
+    const instantLosses: Bison[] = [];
+
     for (const b of this.bison) {
       for (const rock of rocks) {
         const dist = Math.hypot(b.x - rock.x, b.y - rock.y);
         const minDist = rock.radius + GAME_CONFIG.bisonRadius;
         if (dist > 0 && dist < minDist) {
-          this.bounceOff(b, rock.x, rock.y, minDist);
+          if (tooSmallToSurvive) {
+            instantLosses.push(b);
+          } else {
+            this.bounceOff(b, rock.x, rock.y, minDist);
+          }
         }
       }
     }
+
+    this.strand(instantLosses);
   }
 
   // Fences (spec 12.2): whether one breaks depends entirely on the herd's
   // size the moment anyone touches it. Large enough, it breaks and everyone
-  // just keeps moving; too small, it's a solid wall - same bounce as a rock,
-  // with the same chance of disrupting/separating whoever hit it. Returns
-  // how many fences broke this call.
+  // just keeps moving. Otherwise it's a solid wall: a mid-size herd bounces
+  // off it like a rock, but a herd too small to absorb the hit
+  // (smallHerdThreshold) loses whoever hit it outright, same as a rock.
+  // Returns how many fences broke this call.
   handleFenceCollisions(fences: Fence[]): number {
     let brokenCount = 0;
+    const instantLosses: Bison[] = [];
+    const canBreakThrough = this.bison.length >= GAME_CONFIG.fenceBreakHerdSize;
+    const tooSmallToSurvive = this.bison.length <= GAME_CONFIG.smallHerdThreshold;
 
     for (const fence of fences) {
       if (fence.broken) continue;
-
-      const canBreakThrough = this.bison.length >= GAME_CONFIG.fenceBreakHerdSize;
 
       for (const b of this.bison) {
         const { x: cx, y: cy } = fence.closestPoint(b.x, b.y);
@@ -215,10 +219,15 @@ export class Herd {
           break; // no point checking the rest against a now-broken fence
         }
 
-        this.bounceOff(b, cx, cy, GAME_CONFIG.bisonRadius);
+        if (tooSmallToSurvive) {
+          instantLosses.push(b);
+        } else {
+          this.bounceOff(b, cx, cy, GAME_CONFIG.bisonRadius);
+        }
       }
     }
 
+    this.strand(instantLosses);
     return brokenCount;
   }
 
@@ -254,6 +263,25 @@ export class Herd {
     }
 
     b.syncGraphics();
+  }
+
+  // Moves the given bison out of the active herd and into strandedBison
+  // (spec: "should not instantly disappear" - it stays visible, motionless,
+  // and can still be recruited back later). Shared by the turn-induced
+  // straggler path and the small-herd instant-loss path on obstacle hits.
+  // Safe to call with duplicates (e.g. one bison touching two rocks at once).
+  private strand(list: Bison[]): void {
+    if (list.length === 0) return;
+
+    const uniqueLost = new Set(list);
+    for (const b of uniqueLost) {
+      b.vx = 0;
+      b.vy = 0;
+      b.gfx.setFillStyle(GAME_CONFIG.strandedBisonColor);
+      this.strandedBison.push(b);
+    }
+    this.bison = this.bison.filter((b) => !uniqueLost.has(b));
+    this.totalLost += uniqueLost.size;
   }
 
   private updateCenter(): void {

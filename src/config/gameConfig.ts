@@ -46,6 +46,14 @@ export const GAME_CONFIG = {
   // push a bison past lostRadius and cause a real separation.
   obstacleKnockback: 60,
 
+  // A herd at or below this size can't absorb a hit from a rock or an
+  // unbroken fence - the collision costs it that bison outright instead of
+  // just bouncing it. Without this, a tiny/solo herd is nearly impossible to
+  // wipe out (see herdSize: 1 above), since the turn-induced straggler check
+  // measures distance from the herd's own centroid, which for 1-2 bison is
+  // always close to zero.
+  smallHerdThreshold: 5,
+
   // Rocks (spec section 12.1): unbreakable obstacles.
   rockRadius: 26,
   rockColor: 0x8c8c8c,
