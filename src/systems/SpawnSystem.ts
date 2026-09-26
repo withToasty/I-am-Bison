@@ -41,8 +41,12 @@ export function spawnWildBison(scene: Phaser.Scene): WildBison[] {
 // Placeholder placement for v0.1 (spec section 12.1): a handful of rocks
 // sitting roughly between spawn and the wild bison groups above, so avoiding
 // one is a real choice on the way to a recruit rather than an afterthought.
+// The leader starts at (0,0) facing straight up its heading axis (x=0), so
+// the first rock needs a real x offset - at only 30px it sat inside the
+// leader's own collision radius along that line, killing a player who
+// didn't steer at all within ~1.2s regardless of intent.
 const ROCK_POSITIONS: { x: number; y: number }[] = [
-  { x: 30, y: -190 },
+  { x: 90, y: -190 },
   { x: -110, y: -160 },
   { x: 150, y: -150 },
   { x: -40, y: -300 },

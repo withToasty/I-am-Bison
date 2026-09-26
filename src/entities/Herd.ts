@@ -29,11 +29,13 @@ export class Herd {
     this.centerY = spawnY;
 
     for (let i = 0; i < count; i++) {
-      // A lone bison has no neighbors to avoid overlapping, so there's no
-      // reason to scatter it - and doing so was pure luck-of-the-draw over
-      // whether it spawned lined up with the nearest obstacle.
-      const angle = count === 1 ? 0 : (i / count) * Math.PI * 2 + Phaser.Math.FloatBetween(-0.2, 0.2);
-      const radius = count === 1 ? 0 : Phaser.Math.FloatBetween(0, GAME_CONFIG.spawnClusterRadius);
+      // The leader moves in a fully deterministic straight line with no
+      // cohesion/separation drift of its own, so any random spawn offset it
+      // got would stick for the rest of the run - including, by pure luck,
+      // lining up with a fixed obstacle's position. Only followers scatter.
+      const isLeader = i === 0;
+      const angle = isLeader ? 0 : (i / count) * Math.PI * 2 + Phaser.Math.FloatBetween(-0.2, 0.2);
+      const radius = isLeader ? 0 : Phaser.Math.FloatBetween(0, GAME_CONFIG.spawnClusterRadius);
       const x = spawnX + Math.cos(angle) * radius;
       const y = spawnY + Math.sin(angle) * radius;
       const color = i === 0 ? GAME_CONFIG.leaderColor : GAME_CONFIG.bisonColor;
@@ -126,11 +128,16 @@ export class Herd {
       b.vx += ax * dt;
       b.vy += ay * dt;
 
-      // Alignment + forward influence, scaled by this bison's own agility.
-      // Cruising straight needs no correction regardless of agility (the
-      // target barely changes), so this only matters while actively
-      // turning - which is exactly when a slow individual falls behind.
-      const alignmentBlend = Math.min(1, baseAlignmentBlend * b.agility);
+      // Alignment + forward influence, scaled by this bison's own agility
+      // and by how far behind the leader (along the current heading axis)
+      // it is. Cruising straight needs no correction regardless of either
+      // factor (the target barely changes), so this only matters while
+      // actively turning - which is exactly when a slow or trailing
+      // individual falls behind, letting a turn visibly travel front-to-back
+      // through the herd instead of snapping everyone at once.
+      const behindLeader = toCenterX * headingDirX + toCenterY * headingDirY;
+      const turnLag = 1 / (1 + Math.max(0, behindLeader) / GAME_CONFIG.turnLagDistance);
+      const alignmentBlend = Math.min(1, baseAlignmentBlend * b.agility * turnLag);
       b.vx += (targetVx - b.vx) * alignmentBlend;
       b.vy += (targetVy - b.vy) * alignmentBlend;
 
@@ -156,6 +163,13 @@ export class Herd {
     }
 
     this.strand(stragglers);
+
+    // Stranded bison aren't part of the loop above (they're motionless and
+    // out of the herd), so their recruit cooldown - see strand() - ticks
+    // down here instead.
+    for (const b of this.strandedBison) {
+      if (b.recruitCooldown > 0) b.recruitCooldown = Math.max(0, b.recruitCooldown - dt);
+    }
   }
 
   // Pulls any bison in `pool` within joinRadius of the leader into the
@@ -168,6 +182,7 @@ export class Herd {
 
     const joined: Bison[] = [];
     for (const candidate of pool) {
+      if (candidate.recruitCooldown > 0) continue;
       const dist = Math.hypot(candidate.x - this.centerX, candidate.y - this.centerY);
       if (dist <= GAME_CONFIG.joinRadius) {
         joined.push(candidate);
@@ -183,6 +198,7 @@ export class Herd {
     for (const b of joined) {
       b.gfx.setFillStyle(GAME_CONFIG.bisonColor);
       b.timeBeyondLostRadius = 0;
+      b.recruitCooldown = 0;
       this.bison.push(b);
     }
 
@@ -195,17 +211,20 @@ export class Herd {
   // too small to absorb the hit (smallHerdThreshold) loses whoever touched
   // it outright, same as a straggler, but otherwise they're just shoved
   // clear and knocked outward, a recoverable bump.
-  // Returns true if the leader crashed (the run is over).
-  handleRockCollisions(rocks: Rock[]): boolean {
+  // lossPoints carries where each "this cost the herd a bison" event
+  // happened (leader crash or a follower's instant loss), for impact
+  // feedback - a mere bounce isn't a loss and doesn't get a point.
+  handleRockCollisions(rocks: Rock[]): { leaderCrashed: boolean; lossPoints: { x: number; y: number }[] } {
     for (const rock of rocks) {
       const dist = Math.hypot(this.leader.x - rock.x, this.leader.y - rock.y);
       if (dist < rock.radius + GAME_CONFIG.bisonRadius) {
-        return true;
+        return { leaderCrashed: true, lossPoints: [{ x: this.leader.x, y: this.leader.y }] };
       }
     }
 
     const tooSmallToSurvive = this.bison.length <= GAME_CONFIG.smallHerdThreshold;
     const instantLosses: Bison[] = [];
+    const lossPoints: { x: number; y: number }[] = [];
 
     for (const b of this.bison) {
       if (b === this.leader) continue;
@@ -214,7 +233,14 @@ export class Herd {
         const minDist = rock.radius + GAME_CONFIG.bisonRadius;
         if (dist > 0 && dist < minDist) {
           if (tooSmallToSurvive) {
+            // Push clear before freezing it in place - otherwise it's
+            // stranded still overlapping the rock, and if the herd is small
+            // enough to be tight around the leader, it's also immediately
+            // back within joinRadius: recruited next frame, still touching
+            // the rock, and instantly re-stranded in an endless loop.
+            this.clearFromObstacle(b, rock.x, rock.y, minDist);
             instantLosses.push(b);
+            lossPoints.push({ x: b.x, y: b.y });
           } else {
             this.bounceOff(b, rock.x, rock.y, minDist);
           }
@@ -223,7 +249,7 @@ export class Herd {
     }
 
     this.strand(instantLosses);
-    return false;
+    return { leaderCrashed: false, lossPoints };
   }
 
   // Fences (spec 12.2): it's the leader - out in front - whose touch decides
@@ -232,13 +258,22 @@ export class Herd {
   // solid wall and the run ends, same as a rock. Followers that reach a
   // still-unbroken fence bounce off it (or, if the herd's tiny, are lost
   // outright) exactly as before - they just don't get a say in breaking it.
-  // Returns how many fences broke this call, and whether the leader crashed.
-  handleFenceCollisions(fences: Fence[]): { brokenCount: number; leaderCrashed: boolean } {
+  // Returns how many fences broke this call and where (for celebratory
+  // impact feedback), whether the leader crashed, and where any follower was
+  // instantly lost (for the distinct "this was a mistake" feedback).
+  handleFenceCollisions(fences: Fence[]): {
+    brokenCount: number;
+    leaderCrashed: boolean;
+    breakPoints: { x: number; y: number }[];
+    lossPoints: { x: number; y: number }[];
+  } {
     let brokenCount = 0;
     let leaderCrashed = false;
     const canBreakThrough = this.bison.length >= GAME_CONFIG.fenceBreakHerdSize;
     const tooSmallToSurvive = this.bison.length <= GAME_CONFIG.smallHerdThreshold;
     const instantLosses: Bison[] = [];
+    const breakPoints: { x: number; y: number }[] = [];
+    const lossPoints: { x: number; y: number }[] = [];
 
     for (const fence of fences) {
       if (fence.broken) continue;
@@ -249,8 +284,10 @@ export class Herd {
         if (canBreakThrough) {
           fence.break();
           brokenCount++;
+          breakPoints.push({ x: lcx, y: lcy });
         } else {
           leaderCrashed = true;
+          lossPoints.push({ x: this.leader.x, y: this.leader.y });
         }
         continue;
       }
@@ -262,7 +299,11 @@ export class Herd {
         if (dist >= GAME_CONFIG.bisonRadius) continue;
 
         if (tooSmallToSurvive) {
+          // See handleRockCollisions: push clear first so a re-recruit next
+          // frame doesn't land right back on top of the same fence.
+          this.clearFromObstacle(b, cx, cy, GAME_CONFIG.bisonRadius);
           instantLosses.push(b);
+          lossPoints.push({ x: b.x, y: b.y });
         } else {
           this.bounceOff(b, cx, cy, GAME_CONFIG.bisonRadius);
         }
@@ -270,7 +311,7 @@ export class Herd {
     }
 
     this.strand(instantLosses);
-    return { brokenCount, leaderCrashed };
+    return { brokenCount, leaderCrashed, breakPoints, lossPoints };
   }
 
   // Shared bounce response for solid obstacles (rocks, unbroken fences):
@@ -280,23 +321,16 @@ export class Herd {
   // launched rather than bumped). Never called for the leader, which never
   // bounces - any touch it takes ends the run instead.
   private bounceOff(b: Bison, originX: number, originY: number, minDist: number): void {
-    const dx = b.x - originX;
-    const dy = b.y - originY;
-    const dist = Math.hypot(dx, dy);
-    if (dist === 0) return;
+    const normal = this.clearFromObstacle(b, originX, originY, minDist);
+    if (!normal) return;
 
-    const nx = dx / dist;
-    const ny = dy / dist;
-    b.x += nx * (minDist - dist);
-    b.y += ny * (minDist - dist);
-
-    const inward = -(b.vx * nx + b.vy * ny);
+    const inward = -(b.vx * normal.x + b.vy * normal.y);
     if (inward > 0) {
-      b.vx += nx * inward;
-      b.vy += ny * inward;
+      b.vx += normal.x * inward;
+      b.vy += normal.y * inward;
     }
-    b.vx += nx * GAME_CONFIG.obstacleKnockback;
-    b.vy += ny * GAME_CONFIG.obstacleKnockback;
+    b.vx += normal.x * GAME_CONFIG.obstacleKnockback;
+    b.vy += normal.y * GAME_CONFIG.obstacleKnockback;
 
     const speed = Math.hypot(b.vx, b.vy);
     if (speed > GAME_CONFIG.maxIndividualSpeed) {
@@ -308,12 +342,40 @@ export class Herd {
     b.syncGraphics();
   }
 
+  // Shoves a bison's position clear along the normal from `originX,originY`
+  // to `minDist` away, with no velocity change - used both as the first step
+  // of a bounce and, on its own, to make sure an instantly-lost bison isn't
+  // frozen still overlapping the obstacle that cost it (see
+  // handleRockCollisions/handleFenceCollisions: left overlapping, a
+  // re-recruit next frame would immediately re-trigger the same loss).
+  // Returns the outward unit normal, or undefined if the bison was exactly
+  // on the origin point (no defined direction to push clear along).
+  private clearFromObstacle(
+    b: Bison,
+    originX: number,
+    originY: number,
+    minDist: number,
+  ): { x: number; y: number } | undefined {
+    const dx = b.x - originX;
+    const dy = b.y - originY;
+    const dist = Math.hypot(dx, dy);
+    if (dist === 0) return undefined;
+
+    const nx = dx / dist;
+    const ny = dy / dist;
+    b.x += nx * (minDist - dist);
+    b.y += ny * (minDist - dist);
+    b.syncGraphics();
+    return { x: nx, y: ny };
+  }
+
   // Moves the given bison out of the active herd and into strandedBison
   // (spec: "should not instantly disappear" - it stays visible, motionless,
-  // and can still be recruited back later). Shared by the turn-induced
-  // straggler path and the small-herd instant-loss path on obstacle hits.
-  // Safe to call with duplicates (e.g. one bison touching two rocks at once).
-  // Never called with the leader - it isn't a follower and can't straggle.
+  // and can still be recruited back later, once recruitCooldown expires).
+  // Shared by the turn-induced straggler path and the small-herd instant-loss
+  // path on obstacle hits. Safe to call with duplicates (e.g. one bison
+  // touching two rocks at once). Never called with the leader - it isn't a
+  // follower and can't straggle.
   private strand(list: Bison[]): void {
     if (list.length === 0) return;
 
@@ -321,6 +383,7 @@ export class Herd {
     for (const b of uniqueLost) {
       b.vx = 0;
       b.vy = 0;
+      b.recruitCooldown = GAME_CONFIG.recruitCooldown;
       b.gfx.setFillStyle(GAME_CONFIG.strandedBisonColor);
       this.strandedBison.push(b);
     }

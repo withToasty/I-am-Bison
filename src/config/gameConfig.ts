@@ -37,6 +37,11 @@ export const GAME_CONFIG = {
   // same operation - a bison outside the active herd joins once the herd
   // center comes within joinRadius of it.
   joinRadius: 100,
+  // Grace period before a just-lost bison is recruit-eligible again. Without
+  // it, an obstacle instant-loss right next to a small/tight herd (still
+  // within joinRadius) gets picked back up the moment it's lost, walks
+  // straight back into the same obstacle, and repeats every frame.
+  recruitCooldown: 1.5,
 
   // Shared bounce response for any solid obstacle (rocks, unbroken fences):
   // a collision shoves the bison clear and adds this modest outward bump
@@ -79,8 +84,57 @@ export const GAME_CONFIG = {
   // affect gameplay.
   pixelsPerMeter: 20,
 
-  // Camera
+  // Camera (v0.2 M1 feel pass, spec section 4). Zoom eases continuously
+  // between these two extremes based on active herd size - a bigger herd
+  // should visibly make the world feel smaller/more crowded, not just read
+  // bigger in the HUD. cameraZoomHerdReference is the herd size at which the
+  // curve is roughly halfway to cameraZoomLarge.
   cameraLerp: 0.08,
+  cameraZoomSmall: 1.0,
+  cameraZoomLarge: 0.72,
+  cameraZoomHerdReference: 30,
+  cameraZoomLerp: 0.04,
+  // The camera target leads the leader by this many px along the current
+  // heading, so the player sees more of what's ahead than what's behind.
+  // Smoothed on its own (slower than cameraLerp) so a hard turn doesn't snap
+  // the look-ahead point to the new heading instantly.
+  cameraLookAhead: 90,
+  cameraLookAheadLerp: 0.04,
+
+  // Turn propagation feel (v0.2 M1, spec section 5): a follower meaningfully
+  // behind the leader along the current heading axis realigns more slowly
+  // than one beside/ahead of it, so a turn visibly travels front-to-back
+  // through the herd instead of every bison snapping to the new heading at
+  // once. This is a smooth rate multiplier, not a spring/constraint, so it
+  // can't ring or overshoot on its own. turnLagDistance is the behind-leader
+  // distance (px) at which alignment responsiveness is roughly halved.
+  turnLagDistance: 130,
+
+  // Ground/dust feedback (v0.2 M1, spec section 6). Emission rate scales
+  // from dustMinRate (near-solo herd) up toward dustMaxRate as active herd
+  // size approaches dustHerdReference, then levels off - capped regardless
+  // of herd size so cost never scales unbounded.
+  dustMinRate: 4, // particles/sec
+  dustMaxRate: 55, // particles/sec, hard cap
+  dustHerdReference: 50,
+  dustLifetime: 550, // ms
+  dustSpread: 16, // px random offset from the emitting bison
+
+  // Recruitment feedback (v0.2 M1, spec section 7): a "+N" readout and a
+  // pulse ring at the join point. Joins within recruitFeedbackDuration of
+  // each other accumulate into the same popup instead of stacking new ones.
+  recruitFeedbackDuration: 850, // ms
+  recruitPulseScale: 4.5, // ring grows to this multiple of bisonRadius
+
+  // Impact feedback (v0.2 M1, spec section 8): breaking through a fence is a
+  // deliberate, celebratory hit - a longer, softer shake plus warm debris in
+  // the fence's own color. A collision that costs the herd a bison (or ends
+  // the run outright) reads as a mistake instead - shorter and sharper, with
+  // a cooler-toned burst, so the two are never confused for each other.
+  fenceBreakShakeDuration: 220,
+  fenceBreakShakeIntensity: 0.01,
+  collisionShakeDuration: 130,
+  collisionShakeIntensity: 0.018,
 
   // Simulation
   maxDeltaMs: 33, // clamp per-frame dt (~30fps floor) to avoid physics spikes on hitches
