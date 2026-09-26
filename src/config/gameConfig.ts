@@ -37,7 +37,6 @@ export const GAME_CONFIG = {
   // same operation - a bison outside the active herd joins once the herd
   // center comes within joinRadius of it.
   joinRadius: 100,
-  joinSettleTime: 1.0, // seconds a newly joined bison is excluded from the herd centroid
 
   // Shared bounce response for any solid obstacle (rocks, unbroken fences):
   // a collision shoves the bison clear and adds this modest outward bump
@@ -91,6 +90,7 @@ export const GAME_CONFIG = {
   backgroundColor: 0x2e7d32,
   backgroundLineColor: 0x266b2b,
   bisonColor: 0x6b4423,
+  leaderColor: 0xe63946, // the bison you control - unmistakable against the herd/wild/stranded palette
   wildBisonColor: 0xd4a017, // not yet in your herd - tinted gold so it reads as "recruit me"
   strandedBisonColor: 0x8a7f6b, // fell out of your herd - dimmed, but still recruitable
   headingMarkerColor: 0xffee58,

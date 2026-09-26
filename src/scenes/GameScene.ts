@@ -99,8 +99,9 @@ export class GameScene extends Phaser.Scene {
     const dt = Math.min(delta, GAME_CONFIG.maxDeltaMs) / 1000;
 
     this.herd.update(dt, this.steering.direction, this.rivers);
-    this.herd.handleRockCollisions(this.rocks);
-    this.totalDestroyed += this.herd.handleFenceCollisions(this.fences);
+    const leaderHitRock = this.herd.handleRockCollisions(this.rocks);
+    const { brokenCount, leaderCrashed: leaderHitFence } = this.herd.handleFenceCollisions(this.fences);
+    this.totalDestroyed += brokenCount;
 
     // Score (spec sections 15-16): distance is straight-line displacement
     // from spawn, not total path length - looping in place to rack up an
@@ -110,10 +111,11 @@ export class GameScene extends Phaser.Scene {
     this.maxDistanceFromSpawn = Math.max(this.maxDistanceFromSpawn, distanceFromSpawn);
     this.maxHerdSize = Math.max(this.maxHerdSize, this.herd.size);
 
-    // Game over the instant the active herd hits zero (spec section 13) -
-    // checked before recruitment so a wild/stranded bison waiting at the
-    // herd's last known center can't "revive" an already-extinct herd.
-    if (this.herd.size === 0) {
+    // Game over the instant the leader - the bison you actually control -
+    // hits an obstacle it can't break through, or (as a fallback) the active
+    // herd hits zero. Checked before recruitment so a wild/stranded bison
+    // waiting nearby can't "revive" an already-ended run.
+    if (leaderHitRock || leaderHitFence || this.herd.size === 0) {
       this.scene.start("GameOverScene", {
         distanceMeters: this.maxDistanceFromSpawn / GAME_CONFIG.pixelsPerMeter,
         maxHerd: this.maxHerdSize,
