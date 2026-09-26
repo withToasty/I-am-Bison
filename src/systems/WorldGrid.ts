@@ -7,6 +7,7 @@ import { River } from "../obstacles/River";
 import { ENCOUNTER_TEMPLATES, EncounterTemplate } from "./EncounterTemplates";
 import { biomeWeightsAt, getBiome } from "./Biomes";
 import { isRiverZone } from "./WorldNoise";
+import { isWithinAnyLandmark } from "./Landmarks";
 import { hashCellSeed, SeededRandom } from "../utils/seededRandom";
 
 // Every template that places a river, regardless of which biome(s) it's
@@ -131,14 +132,17 @@ export class WorldGrid {
     const key = this.cellKey(cellX, cellY);
     const runtime: CellRuntime = { templateId: "", rocks: [], fences: [], rivers: [], wildMembers: [] };
 
-    if (this.isSafeCell(cellX, cellY)) {
-      this.loaded.set(key, runtime);
-      return;
-    }
-
     const cellSize = GAME_CONFIG.worldCellSize;
     const centerX = (cellX + 0.5) * cellSize;
     const centerY = (cellY + 0.5) * cellSize;
+
+    // Landmarks (v0.3 M-G4) own their footprint outright - LandmarkDirector
+    // spawns their content separately, so a cell inside one stays as empty
+    // here as the spawn-corner safe zone, or the two would overlap.
+    if (this.isSafeCell(cellX, cellY) || isWithinAnyLandmark(centerX, centerY)) {
+      this.loaded.set(key, runtime);
+      return;
+    }
 
     const rng = new SeededRandom(hashCellSeed(cellX, cellY, this.runSeed));
     const template = this.pickTemplate(rng, centerX, centerY);

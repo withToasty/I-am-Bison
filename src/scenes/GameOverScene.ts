@@ -5,6 +5,7 @@ export interface GameOverData {
   distanceMeters: number;
   maxHerd: number;
   destroyed: number;
+  discoveries: number;
 }
 
 // Results screen shown when the active herd hits zero (spec sections 13,
@@ -38,6 +39,7 @@ export class GameOverScene extends Phaser.Scene {
     const stats: [string, string][] = [
       ["DISTANCE", `${Math.floor(this.result.distanceMeters).toLocaleString()}m`],
       ["MAX HERD", `${this.result.maxHerd}`],
+      ["DISCOVERIES", `${this.result.discoveries}`],
       ["DESTROYED", `${this.result.destroyed}`],
     ];
 

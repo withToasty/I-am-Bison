@@ -8,6 +8,7 @@ import { Fence } from "../obstacles/Fence";
 import { River } from "../obstacles/River";
 import { SteeringInput } from "../input/SteeringInput";
 import { WorldGrid } from "../systems/WorldGrid";
+import { LandmarkDirector } from "../systems/LandmarkDirector";
 import { BIOMES, biomeWeightsAt } from "../systems/Biomes";
 import { isRiverZone } from "../systems/WorldNoise";
 import { HUD } from "../ui/HUD";
@@ -50,6 +51,7 @@ export class GameScene extends Phaser.Scene {
   private spawnX = 0;
   private spawnY = 0;
   private worldGrid!: WorldGrid;
+  private landmarkDirector!: LandmarkDirector;
 
   // v0.2 M1 feel pass
   private dustEmitter!: Phaser.GameObjects.Particles.ParticleEmitter;
@@ -109,7 +111,9 @@ export class GameScene extends Phaser.Scene {
 
     this.herd = new Herd(this.herdSize, 0, 0);
     this.worldGrid = new WorldGrid(this, this.rocks, this.fences, this.rivers, this.wildBison);
+    this.landmarkDirector = new LandmarkDirector(this, this.rocks, this.fences, this.rivers, this.wildBison);
     this.worldGrid.update(this.herd.leader.x, this.herd.leader.y); // load the cells around spawn
+    this.landmarkDirector.update(this.herd.leader.x, this.herd.leader.y);
     this.totalRecruited = 0;
     this.totalDestroyed = 0;
     this.maxDistanceFromSpawn = 0;
@@ -199,6 +203,7 @@ export class GameScene extends Phaser.Scene {
         distanceMeters: this.maxDistanceFromSpawn / GAME_CONFIG.pixelsPerMeter,
         maxHerd: this.maxHerdSize,
         destroyed: this.totalDestroyed,
+        discoveries: this.landmarkDirector.discoveryCount,
       } satisfies GameOverData);
       return;
     }
@@ -208,6 +213,7 @@ export class GameScene extends Phaser.Scene {
     if (recruitedThisFrame > 0) this.showRecruitFeedback(recruitedThisFrame);
 
     this.worldGrid.update(this.herd.leader.x, this.herd.leader.y);
+    this.landmarkDirector.update(this.herd.leader.x, this.herd.leader.y);
 
     this.updateCameraZoom();
     this.updateCameraTarget();
@@ -401,7 +407,7 @@ export class GameScene extends Phaser.Scene {
       .join(" / ");
     const river = isRiverZone(leader.x, leader.y, this.worldGrid.seed) ? " RIVER-ZONE" : "";
     this.devText.setText(
-      `HERD ${this.herd.size}  MAX HERD ${this.maxHerdSize}  TURN RATE ${turnPercent}%  LOST ${this.herd.totalLost}  RECRUITED ${this.totalRecruited}  WILD LEFT ${this.wildBison.length}  DESTROYED ${this.totalDestroyed}\n` +
+      `HERD ${this.herd.size}  MAX HERD ${this.maxHerdSize}  TURN RATE ${turnPercent}%  LOST ${this.herd.totalLost}  RECRUITED ${this.totalRecruited}  WILD LEFT ${this.wildBison.length}  DESTROYED ${this.totalDestroyed}  DISCOVERIES ${this.landmarkDirector.discoveryCount}\n` +
         `CELLS LOADED ${this.worldGrid.loadedCount}  LAST CELL (${cell.x},${cell.y})  LAST TEMPLATE ${this.worldGrid.lastTemplate}\n` +
         `RADIUS ${radius}  BIOME ${biomeMix}${river}\n` +
         `1-5: test herd sizes (${TEST_HERD_SIZES.join("/")})`,

@@ -171,6 +171,14 @@ export const GAME_CONFIG = {
   ringWobbleAmount: 0.15,
   ringWobbleSampleRadius: 3,
 
+  // Landmarks (v0.3 M-G4, spec section 4/6): a landmark's own content
+  // stays loaded a bit further than its discovery radius (so it's visible
+  // and worth walking toward before you're already on top of it) and
+  // unloads a bit further still, so being right at the discovery boundary
+  // doesn't flicker content in and out.
+  landmarkLoadMargin: 300,
+  landmarkUnloadMargin: 450,
+
   // Simulation
   maxDeltaMs: 33, // clamp per-frame dt (~30fps floor) to avoid physics spikes on hitches
 
