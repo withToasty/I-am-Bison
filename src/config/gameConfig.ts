@@ -20,6 +20,9 @@ export const GAME_CONFIG = {
   // Camera
   cameraLerp: 0.08,
 
+  // Simulation
+  maxDeltaMs: 33, // clamp per-frame dt (~30fps floor) to avoid physics spikes on hitches
+
   // Visuals
   backgroundTileSize: 64,
   backgroundColor: 0x2e7d32,

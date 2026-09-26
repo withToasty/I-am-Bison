@@ -28,13 +28,18 @@ export class GameScene extends Phaser.Scene {
     this.headingMarker = this.add.graphics();
 
     this.cameraTarget = this.add.zone(this.herd.centerX, this.herd.centerY, 1, 1);
-    this.cameras.main.startFollow(this.cameraTarget, true, GAME_CONFIG.cameraLerp, GAME_CONFIG.cameraLerp);
+    // roundPixels must stay off: it snaps camera scroll to whole pixels every
+    // frame, which visibly judders against the sub-pixel-precise background
+    // tile scroll below, especially while the camera is panning along a curve.
+    this.cameras.main.startFollow(this.cameraTarget, false, GAME_CONFIG.cameraLerp, GAME_CONFIG.cameraLerp);
 
     this.scale.on("resize", this.handleResize, this);
   }
 
   update(_time: number, delta: number): void {
-    const dt = delta / 1000;
+    // Clamp so a frame hitch (tab throttling, GC pause) can't turn into a
+    // single oversized physics step that looks like a stutter/pop.
+    const dt = Math.min(delta, GAME_CONFIG.maxDeltaMs) / 1000;
 
     this.herd.update(dt, this.steering.direction);
 
