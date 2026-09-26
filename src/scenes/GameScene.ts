@@ -8,6 +8,7 @@ import { River } from "../obstacles/River";
 import { SteeringInput } from "../input/SteeringInput";
 import { spawnFences, spawnRivers, spawnRocks, spawnWildBison } from "../systems/SpawnSystem";
 import { HUD } from "../ui/HUD";
+import type { GameOverData } from "./GameOverScene";
 
 // Herd sizes bound to the 1-5 keys so 10-vs-50 (and beyond) can be felt
 // back-to-back without recruitment/loss systems, which arrive in later
@@ -100,8 +101,6 @@ export class GameScene extends Phaser.Scene {
     this.herd.update(dt, this.steering.direction, this.rivers);
     this.herd.handleRockCollisions(this.rocks);
     this.totalDestroyed += this.herd.handleFenceCollisions(this.fences);
-    this.totalRecruited += this.herd.recruit(this.wildBison);
-    this.totalRecruited += this.herd.recruit(this.herd.strandedBison);
 
     // Score (spec sections 15-16): distance is straight-line displacement
     // from spawn, not total path length - looping in place to rack up an
@@ -110,6 +109,21 @@ export class GameScene extends Phaser.Scene {
     const distanceFromSpawn = Math.hypot(this.herd.centerX - this.spawnX, this.herd.centerY - this.spawnY);
     this.maxDistanceFromSpawn = Math.max(this.maxDistanceFromSpawn, distanceFromSpawn);
     this.maxHerdSize = Math.max(this.maxHerdSize, this.herd.size);
+
+    // Game over the instant the active herd hits zero (spec section 13) -
+    // checked before recruitment so a wild/stranded bison waiting at the
+    // herd's last known center can't "revive" an already-extinct herd.
+    if (this.herd.size === 0) {
+      this.scene.start("GameOverScene", {
+        distanceMeters: this.maxDistanceFromSpawn / GAME_CONFIG.pixelsPerMeter,
+        maxHerd: this.maxHerdSize,
+        destroyed: this.totalDestroyed,
+      } satisfies GameOverData);
+      return;
+    }
+
+    this.totalRecruited += this.herd.recruit(this.wildBison);
+    this.totalRecruited += this.herd.recruit(this.herd.strandedBison);
 
     this.cameraTarget.setPosition(this.herd.centerX, this.herd.centerY);
     this.background.tilePositionX = this.herd.centerX;

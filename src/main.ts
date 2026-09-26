@@ -1,6 +1,7 @@
 import Phaser from "phaser";
 import "./style.css";
 import { GameScene } from "./scenes/GameScene";
+import { GameOverScene } from "./scenes/GameOverScene";
 
 const parent = document.getElementById("app")!;
 
@@ -17,7 +18,7 @@ const game = new Phaser.Game({
     width: parent.clientWidth || window.innerWidth,
     height: parent.clientHeight || window.innerHeight,
   },
-  scene: [GameScene],
+  scene: [GameScene, GameOverScene],
 });
 
 // Some embedded/iframed hosts resize the page's viewport without ever
