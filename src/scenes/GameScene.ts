@@ -74,7 +74,7 @@ export class GameScene extends Phaser.Scene {
   private updateDevText(): void {
     const turnPercent = Math.round((this.herd.turnRate / GAME_CONFIG.baseTurnRate) * 100);
     this.devText.setText(
-      `HERD ${this.herd.size}  TURN RATE ${turnPercent}%\n1-5: test herd sizes (${TEST_HERD_SIZES.join("/")})`,
+      `HERD ${this.herd.size}  TURN RATE ${turnPercent}%  LOST ${this.herd.totalLost}\n1-5: test herd sizes (${TEST_HERD_SIZES.join("/")})`,
     );
   }
 

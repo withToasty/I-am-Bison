@@ -15,8 +15,21 @@ export const GAME_CONFIG = {
   cohesionForce: 0.6, // spring constant pulling a bison toward the herd center
   separationForce: 300, // px/s^2 repulsion strength at zero distance
   separationRadius: 24, // preferred spacing before repulsion kicks in
-  alignmentForce: 3.0, // per-second blend rate toward the herd's forward velocity
+  alignmentForce: 3.0, // per-second blend rate toward the herd's forward velocity, at full responsiveness
   maxIndividualSpeed: 256, // hard clamp so cohesion/separation can't run away
+
+  // Separation and loss (spec sections 9-10). Each bison is born with a
+  // fixed agility multiplier on its own alignment responsiveness, so a
+  // naturally slower individual can't keep its velocity matched to the
+  // herd's heading while that heading is changing quickly. That mismatch
+  // only appears *while actively turning* - cruising straight needs no
+  // correction regardless of agility, so a resting/straight-line herd never
+  // drifts apart on its own. If a bison ends up beyond lostRadius from the
+  // herd center for lostDelay seconds, it leaves the active herd for good.
+  minAgility: 0.15,
+  maxAgility: 1.2,
+  lostRadius: 190,
+  lostDelay: 1.0,
 
   // Camera
   cameraLerp: 0.08,

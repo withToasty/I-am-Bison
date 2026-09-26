@@ -8,11 +8,17 @@ export class Bison {
   y: number;
   vx = 0;
   vy = 0;
+  timeBeyondLostRadius = 0;
+  // Fixed at spawn: how quickly this individual's velocity can realign to a
+  // changing herd heading. Most bison are close to 1; a few are naturally
+  // slow and risk falling behind during a sharp, sustained turn.
+  readonly agility: number;
   readonly gfx: Phaser.GameObjects.Arc;
 
   constructor(scene: Phaser.Scene, x: number, y: number) {
     this.x = x;
     this.y = y;
+    this.agility = Phaser.Math.FloatBetween(GAME_CONFIG.minAgility, GAME_CONFIG.maxAgility);
     this.gfx = scene.add.circle(x, y, GAME_CONFIG.bisonRadius, GAME_CONFIG.bisonColor);
   }
 
