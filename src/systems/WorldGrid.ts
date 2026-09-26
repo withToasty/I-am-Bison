@@ -22,7 +22,7 @@ const RIVER_TEMPLATES = ENCOUNTER_TEMPLATES.filter((t) => t.rivers.length > 0);
 // bison "member key" each WildBison came from.
 interface CellRuntime {
   templateId: string;
-  rocks: Rock[];
+  rocks: { templateIndex: number; rock: Rock }[];
   fences: { templateIndex: number; fence: Fence }[];
   rivers: River[];
   wildMembers: { key: string; bison: WildBison }[];
@@ -49,6 +49,7 @@ export class WorldGrid {
   // alone and needs no memory at all.
   private recruitedMembers = new Set<string>();
   private brokenFences = new Set<string>();
+  private brokenRocks = new Set<string>();
   private readonly runSeed: number;
   private lastPlayerCellX: number | null = null;
   private lastPlayerCellY: number | null = null;
@@ -56,6 +57,13 @@ export class WorldGrid {
   private lastBiomeId = "";
   private lastCellX = 0;
   private lastCellY = 0;
+  // Cell coordinates still waiting to be loaded/unloaded, drained a few at
+  // a time per frame (see drainQueues) instead of all at once the instant
+  // the player crosses a cell boundary - loading several cells' worth of
+  // Phaser objects synchronously in one frame is what caused visible
+  // stutter on movement (difficulty-pass playtest feedback).
+  private loadQueue: { x: number; y: number }[] = [];
+  private unloadQueue: string[] = [];
 
   constructor(
     private readonly scene: Phaser.Scene,
@@ -88,31 +96,52 @@ export class WorldGrid {
   }
 
   // Called every frame from GameScene.update() with the leader's current
-  // world position. Cheap to call when the player hasn't crossed a cell
-  // boundary - the whole body short-circuits until they have.
+  // world position. Recomputing the wanted set is cheap and only happens
+  // when the player has crossed a cell boundary; draining the load/unload
+  // queues happens every frame regardless, a few cells at a time.
   update(playerX: number, playerY: number): void {
     const cellSize = GAME_CONFIG.worldCellSize;
     const playerCellX = Math.floor(playerX / cellSize);
     const playerCellY = Math.floor(playerY / cellSize);
 
-    if (playerCellX === this.lastPlayerCellX && playerCellY === this.lastPlayerCellY) return;
-    this.lastPlayerCellX = playerCellX;
-    this.lastPlayerCellY = playerCellY;
+    if (playerCellX !== this.lastPlayerCellX || playerCellY !== this.lastPlayerCellY) {
+      this.lastPlayerCellX = playerCellX;
+      this.lastPlayerCellY = playerCellY;
 
-    const r = GAME_CONFIG.worldLoadRadiusCells;
-    const wanted = new Set<string>();
-    for (let dy = -r; dy <= r; dy++) {
-      for (let dx = -r; dx <= r; dx++) {
-        const cx = playerCellX + dx;
-        const cy = playerCellY + dy;
-        const key = this.cellKey(cx, cy);
-        wanted.add(key);
-        if (!this.loaded.has(key)) this.loadCell(cx, cy);
+      const r = GAME_CONFIG.worldLoadRadiusCells;
+      const wanted = new Set<string>();
+      const newLoadQueue: { x: number; y: number }[] = [];
+      for (let dy = -r; dy <= r; dy++) {
+        for (let dx = -r; dx <= r; dx++) {
+          const cx = playerCellX + dx;
+          const cy = playerCellY + dy;
+          const key = this.cellKey(cx, cy);
+          wanted.add(key);
+          if (!this.loaded.has(key)) newLoadQueue.push({ x: cx, y: cy });
+        }
       }
+      // Replacing (not appending) both queues on every boundary crossing
+      // means a cell that's no longer wanted before it's been processed is
+      // simply absent from the new load queue, and a cell the player
+      // circled back to before it was unloaded is simply absent from the
+      // new unload queue - no separate bookkeeping needed to cancel either.
+      this.loadQueue = newLoadQueue;
+      this.unloadQueue = [...this.loaded.keys()].filter((key) => !wanted.has(key));
     }
 
-    for (const [key, cell] of this.loaded) {
-      if (!wanted.has(key)) this.unloadCell(key, cell);
+    this.drainQueues();
+  }
+
+  private drainQueues(): void {
+    for (let i = 0; i < GAME_CONFIG.worldMaxLoadsPerFrame && this.loadQueue.length > 0; i++) {
+      const { x, y } = this.loadQueue.shift()!;
+      if (!this.loaded.has(this.cellKey(x, y))) this.loadCell(x, y);
+    }
+
+    for (let i = 0; i < GAME_CONFIG.worldMaxUnloadsPerFrame && this.unloadQueue.length > 0; i++) {
+      const key = this.unloadQueue.shift()!;
+      const cell = this.loaded.get(key);
+      if (cell) this.unloadCell(key, cell);
     }
   }
 
@@ -160,10 +189,14 @@ export class WorldGrid {
 
     runtime.templateId = template.id;
 
-    for (const r of template.rocks) {
+    for (let ri = 0; ri < template.rocks.length; ri++) {
+      const rockKey = `${key}:rock${ri}`;
+      if (this.brokenRocks.has(rockKey)) continue; // stays broken forever
+
+      const r = template.rocks[ri];
       const p = rotate(r.x, r.y);
-      const rock = new Rock(this.scene, p.x, p.y);
-      runtime.rocks.push(rock);
+      const rock = new Rock(this.scene, p.x, p.y, r.breakThreshold);
+      runtime.rocks.push({ templateIndex: ri, rock });
       this.rocks.push(rock);
     }
 
@@ -173,7 +206,7 @@ export class WorldGrid {
 
       const f = template.fences[fi];
       const p = rotate(f.x, f.y);
-      const fence = new Fence(this.scene, p.x, p.y, f.width);
+      const fence = new Fence(this.scene, p.x, p.y, f.width, f.kind, f.breakThreshold);
       runtime.fences.push({ templateIndex: fi, fence });
       this.fences.push(fence);
     }
@@ -211,9 +244,10 @@ export class WorldGrid {
   }
 
   private unloadCell(key: string, cell: CellRuntime): void {
-    for (const rock of cell.rocks) {
+    for (const { templateIndex, rock } of cell.rocks) {
       const idx = this.rocks.indexOf(rock);
       if (idx !== -1) this.rocks.splice(idx, 1);
+      if (rock.broken) this.brokenRocks.add(`${key}:rock${templateIndex}`);
       rock.destroy();
     }
 

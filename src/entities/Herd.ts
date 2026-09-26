@@ -209,62 +209,78 @@ export class Herd {
     return joined.length;
   }
 
-  // Rocks are solid and unbreakable (spec 12.1). The leader is the bison the
-  // player actually controls, so any rock it touches ends the run outright -
-  // there's no bouncing back from that. Followers are more forgiving: a herd
-  // too small to absorb the hit (smallHerdThreshold) loses whoever touched
-  // it outright, same as a straggler, but otherwise they're just shoved
-  // clear and knocked outward, a recoverable bump.
-  // lossPoints carries where each "this cost the herd a bison" event
-  // happened (leader crash or a follower's instant loss), for impact
-  // feedback - a mere bounce isn't a loss and doesn't get a point.
-  handleRockCollisions(rocks: Rock[]): { leaderCrashed: boolean; lossPoints: { x: number; y: number }[] } {
-    for (const rock of rocks) {
-      const dist = Math.hypot(this.leader.x - rock.x, this.leader.y - rock.y);
-      if (dist < rock.radius + GAME_CONFIG.bisonRadius) {
-        return { leaderCrashed: true, lossPoints: [{ x: this.leader.x, y: this.leader.y }] };
-      }
-    }
-
+  // Rocks block the herd until broken - like a fence, whether the leader
+  // breaks through depends on the herd's size versus this particular rock's
+  // breakThreshold. Large enough, it shatters and everyone keeps moving;
+  // otherwise the leader hits solid stone and the run ends. Followers that
+  // reach a still-unbroken rock bounce off it (or, if the herd's tiny, are
+  // lost outright) exactly as before - they just don't get a say in
+  // breaking it. Returns how many rocks broke this call and where (for
+  // celebratory impact feedback), whether the leader crashed, and where any
+  // follower was instantly lost (for the distinct "this was a mistake"
+  // feedback).
+  handleRockCollisions(rocks: Rock[]): {
+    brokenCount: number;
+    leaderCrashed: boolean;
+    breakPoints: { x: number; y: number }[];
+    lossPoints: { x: number; y: number }[];
+  } {
+    let brokenCount = 0;
+    let leaderCrashed = false;
     const tooSmallToSurvive = this.bison.length <= GAME_CONFIG.smallHerdThreshold;
     const instantLosses: Bison[] = [];
+    const breakPoints: { x: number; y: number }[] = [];
     const lossPoints: { x: number; y: number }[] = [];
 
-    for (const b of this.bison) {
-      if (b === this.leader) continue;
-      for (const rock of rocks) {
+    for (const rock of rocks) {
+      if (rock.broken) continue;
+
+      const minDist = rock.radius + GAME_CONFIG.bisonRadius;
+      const leaderDist = Math.hypot(this.leader.x - rock.x, this.leader.y - rock.y);
+      if (leaderDist < minDist) {
+        if (this.bison.length >= rock.breakThreshold) {
+          rock.break();
+          brokenCount++;
+          breakPoints.push({ x: rock.x, y: rock.y });
+        } else {
+          leaderCrashed = true;
+          lossPoints.push({ x: this.leader.x, y: this.leader.y });
+        }
+        continue;
+      }
+
+      for (const b of this.bison) {
+        if (b === this.leader) continue;
         const dist = Math.hypot(b.x - rock.x, b.y - rock.y);
-        const minDist = rock.radius + GAME_CONFIG.bisonRadius;
-        if (dist > 0 && dist < minDist) {
-          if (tooSmallToSurvive) {
-            // Push clear before freezing it in place - otherwise it's
-            // stranded still overlapping the rock, and if the herd is small
-            // enough to be tight around the leader, it's also immediately
-            // back within joinRadius: recruited next frame, still touching
-            // the rock, and instantly re-stranded in an endless loop.
-            this.clearFromObstacle(b, rock.x, rock.y, minDist);
-            instantLosses.push(b);
-            lossPoints.push({ x: b.x, y: b.y });
-          } else {
-            this.bounceOff(b, rock.x, rock.y, minDist);
-          }
+        if (dist <= 0 || dist >= minDist) continue;
+
+        if (tooSmallToSurvive) {
+          // Push clear before freezing it in place - otherwise it's
+          // stranded still overlapping the rock, and if the herd is small
+          // enough to be tight around the leader, it's also immediately
+          // back within joinRadius: recruited next frame, still touching
+          // the rock, and instantly re-stranded in an endless loop.
+          this.clearFromObstacle(b, rock.x, rock.y, minDist);
+          instantLosses.push(b);
+          lossPoints.push({ x: b.x, y: b.y });
+        } else {
+          this.bounceOff(b, rock.x, rock.y, minDist);
         }
       }
     }
 
     this.strand(instantLosses);
-    return { leaderCrashed: false, lossPoints };
+    return { brokenCount, leaderCrashed, breakPoints, lossPoints };
   }
 
-  // Fences (spec 12.2): it's the leader - out in front - whose touch decides
-  // whether one breaks, based on the herd's size at that moment. Large
-  // enough, it breaks and everyone keeps moving; otherwise the leader hits a
-  // solid wall and the run ends, same as a rock. Followers that reach a
-  // still-unbroken fence bounce off it (or, if the herd's tiny, are lost
-  // outright) exactly as before - they just don't get a say in breaking it.
-  // Returns how many fences broke this call and where (for celebratory
-  // impact feedback), whether the leader crashed, and where any follower was
-  // instantly lost (for the distinct "this was a mistake" feedback).
+  // Fences/logs/ice walls (spec 12.2, generalized): it's the leader - out in
+  // front - whose touch decides whether one breaks, based on the herd's
+  // size versus this instance's own breakThreshold (a log's is low, an ice
+  // wall's is high - see obstacles/Fence.ts). Large enough, it breaks and
+  // everyone keeps moving; otherwise the leader hits a solid wall and the
+  // run ends, same as a rock. Followers that reach a still-unbroken barrier
+  // bounce off it (or, if the herd's tiny, are lost outright) exactly as
+  // before - they just don't get a say in breaking it.
   handleFenceCollisions(fences: Fence[]): {
     brokenCount: number;
     leaderCrashed: boolean;
@@ -273,7 +289,6 @@ export class Herd {
   } {
     let brokenCount = 0;
     let leaderCrashed = false;
-    const canBreakThrough = this.bison.length >= GAME_CONFIG.fenceBreakHerdSize;
     const tooSmallToSurvive = this.bison.length <= GAME_CONFIG.smallHerdThreshold;
     const instantLosses: Bison[] = [];
     const breakPoints: { x: number; y: number }[] = [];
@@ -285,7 +300,7 @@ export class Herd {
       const { x: lcx, y: lcy } = fence.closestPoint(this.leader.x, this.leader.y);
       const leaderDist = Math.hypot(this.leader.x - lcx, this.leader.y - lcy);
       if (leaderDist < GAME_CONFIG.bisonRadius) {
-        if (canBreakThrough) {
+        if (this.bison.length >= fence.breakThreshold) {
           fence.break();
           brokenCount++;
           breakPoints.push({ x: lcx, y: lcy });

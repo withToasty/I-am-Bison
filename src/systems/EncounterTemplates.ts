@@ -14,9 +14,14 @@
 // These are data, not spawn functions - keep every layout easy to read and
 // tune in this one file rather than splitting it into per-template code.
 
+import { BarrierKind } from "../obstacles/Fence";
+
 export interface LocalPoint {
   x: number;
   y: number;
+  // Herd size needed to break through this particular rock, instead of the
+  // leader crashing into it. Defaults to GAME_CONFIG.rockBreakHerdSize.
+  breakThreshold?: number;
 }
 
 export interface LocalWildGroup {
@@ -30,6 +35,10 @@ export interface LocalFence {
   x: number;
   y: number;
   width: number;
+  // "fence" (default) / "log" / "ice" - see obstacles/Fence.ts's
+  // BARRIER_VISUALS for each kind's color and default breakThreshold.
+  kind?: BarrierKind;
+  breakThreshold?: number; // overrides the kind's default threshold
 }
 
 export interface LocalRiver {
@@ -220,6 +229,36 @@ export const ENCOUNTER_TEMPLATES: EncounterTemplate[] = [
       { x: -50, y: -280 },
     ],
     fences: [{ x: -20, y: -330, width: 220 }],
+    rivers: [],
+  },
+
+  // J. Deadfall - a fallen log blocks the direct line; it's flimsier than a
+  // fence (breaks at a much smaller herd), so this is an early, easy taste
+  // of "big enough herd smashes through anything" before the tougher ice
+  // wall (below) asks for real size. The detour around costs nothing.
+  {
+    id: "deadfall",
+    minProgress: 300,
+    weight: 1,
+    length: 320,
+    wildGroups: [{ x: 150, y: -260, count: 3, spread: 35 }],
+    rocks: [],
+    fences: [{ x: -20, y: -180, width: 200, kind: "log" }],
+    rivers: [],
+  },
+
+  // K. Ice Gate - a tall ice wall with a much higher break threshold than
+  // any fence or log, guarding a large reward. A small/mid herd has to
+  // detour; only a genuinely large one bulldozes straight through -
+  // the "50+ herd to pass" moment from the original design notes.
+  {
+    id: "ice-gate",
+    minProgress: 3800,
+    weight: 1.2,
+    length: 380,
+    wildGroups: [{ x: 170, y: -260, count: 5, spread: 45 }],
+    rocks: [],
+    fences: [{ x: -10, y: -190, width: 240, kind: "ice" }],
     rivers: [],
   },
 ];

@@ -176,7 +176,7 @@ export class GameScene extends Phaser.Scene {
     this.herd.update(dt, this.steering.direction, this.rivers, speedMultiplier);
     const rockResult = this.herd.handleRockCollisions(this.rocks);
     const fenceResult = this.herd.handleFenceCollisions(this.fences);
-    this.totalDestroyed += fenceResult.brokenCount;
+    this.totalDestroyed += fenceResult.brokenCount + rockResult.brokenCount;
 
     // Impact feedback (v0.2 M1 feel pass, spec section 8): a successful break
     // reads as a deliberate, powerful hit; anything that actually cost the
@@ -185,7 +185,9 @@ export class GameScene extends Phaser.Scene {
     // somehow land the same frame, the positive one wins so it never gets
     // stepped on by a shake reset.
     if (fenceResult.breakPoints.length > 0) {
-      this.triggerFenceBreakFeedback(fenceResult.breakPoints[0]);
+      this.triggerFenceBreakFeedback(fenceResult.breakPoints[0], GAME_CONFIG.fenceColor);
+    } else if (rockResult.breakPoints.length > 0) {
+      this.triggerFenceBreakFeedback(rockResult.breakPoints[0], GAME_CONFIG.rockColor);
     } else {
       const lossPoint = fenceResult.lossPoints[0] ?? rockResult.lossPoints[0];
       if (lossPoint) this.triggerCollisionFeedback(lossPoint);
@@ -367,12 +369,13 @@ export class GameScene extends Phaser.Scene {
     });
   }
 
-  // Fence-break impact (v0.2 M1, spec section 8.1): a longer, softer shake
-  // plus a warm debris burst tinted in the fence's own color - reads as
+  // Break impact (v0.2 M1, spec section 8.1; generalized to rocks in the
+  // difficulty pass): a longer, softer shake plus a warm debris burst
+  // tinted in whichever obstacle just broke's own color - reads as
   // triumphant, not punishing.
-  private triggerFenceBreakFeedback(point: { x: number; y: number }): void {
+  private triggerFenceBreakFeedback(point: { x: number; y: number }, tint: number): void {
     this.cameras.main.shake(GAME_CONFIG.fenceBreakShakeDuration, GAME_CONFIG.fenceBreakShakeIntensity);
-    this.burstDebris(point.x, point.y, GAME_CONFIG.fenceColor, 14, 90, 220);
+    this.burstDebris(point.x, point.y, tint, 14, 90, 220);
   }
 
   // Non-breakable / loss impact (v0.2 M1, spec section 8.2): shorter and

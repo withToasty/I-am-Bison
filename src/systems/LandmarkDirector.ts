@@ -10,7 +10,7 @@ import { Landmark, LANDMARKS } from "./Landmarks";
 // CellRuntime - see that class for why the diff (recruited members,
 // broken fences) is tracked by key rather than by object identity alone.
 interface LandmarkRuntime {
-  rocks: Rock[];
+  rocks: { index: number; rock: Rock }[];
   fences: { index: number; fence: Fence }[];
   rivers: River[];
   wildMembers: { key: string; bison: WildBison }[];
@@ -34,6 +34,7 @@ export class LandmarkDirector {
   private runtimes = new Map<string, LandmarkRuntime>();
   private recruitedMembers = new Set<string>();
   private brokenFences = new Set<string>();
+  private brokenRocks = new Set<string>();
   private discovered = new Set<string>();
 
   constructor(
@@ -70,9 +71,13 @@ export class LandmarkDirector {
     const runtime: LandmarkRuntime = { rocks: [], fences: [], rivers: [], wildMembers: [] };
     const { content } = landmark;
 
-    for (const r of content.rocks) {
-      const rock = new Rock(this.scene, landmark.x + r.x, landmark.y + r.y);
-      runtime.rocks.push(rock);
+    for (let ri = 0; ri < content.rocks.length; ri++) {
+      const rockKey = `${landmark.id}:rock${ri}`;
+      if (this.brokenRocks.has(rockKey)) continue; // stays broken forever
+
+      const r = content.rocks[ri];
+      const rock = new Rock(this.scene, landmark.x + r.x, landmark.y + r.y, r.breakThreshold);
+      runtime.rocks.push({ index: ri, rock });
       this.rocks.push(rock);
     }
 
@@ -81,7 +86,7 @@ export class LandmarkDirector {
       if (this.brokenFences.has(fenceKey)) continue; // stays broken forever
 
       const f = content.fences[fi];
-      const fence = new Fence(this.scene, landmark.x + f.x, landmark.y + f.y, f.width);
+      const fence = new Fence(this.scene, landmark.x + f.x, landmark.y + f.y, f.width, f.kind, f.breakThreshold);
       runtime.fences.push({ index: fi, fence });
       this.fences.push(fence);
     }
@@ -117,9 +122,10 @@ export class LandmarkDirector {
     const runtime = this.runtimes.get(landmark.id);
     if (!runtime) return;
 
-    for (const rock of runtime.rocks) {
+    for (const { index, rock } of runtime.rocks) {
       const idx = this.rocks.indexOf(rock);
       if (idx !== -1) this.rocks.splice(idx, 1);
+      if (rock.broken) this.brokenRocks.add(`${landmark.id}:rock${index}`);
       rock.destroy();
     }
 

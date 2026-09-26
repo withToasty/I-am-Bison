@@ -74,13 +74,24 @@ export const GAME_CONFIG = {
   // Rocks (spec section 12.1): unbreakable obstacles.
   rockRadius: 26,
   rockColor: 0x8c8c8c,
+  // Difficulty pass: rocks used to be permanently unbreakable, so the
+  // leader touching one always ended the run regardless of herd size. Now
+  // every solid obstacle breaks given a big enough herd - rocks just need a
+  // bigger one than a fence, so they still feel like the harder obstacle
+  // early on.
+  rockBreakHerdSize: 30,
 
-  // Fences (spec section 12.2): whether one breaks depends entirely on the
-  // herd's size at the moment it's touched. A large enough herd breaks
-  // through and keeps moving; a smaller one bounces off it exactly like a
-  // rock, with the same chance of disruption/separation.
+  // Barriers - fence/log/ice (spec section 12.2, generalized in
+  // obstacles/Fence.ts): whether one breaks depends entirely on the herd's
+  // size at the moment it's touched, versus that instance's own
+  // breakThreshold. A large enough herd breaks through and keeps moving; a
+  // smaller one bounces off it exactly like a rock, with the same chance
+  // of disruption/separation. logBreakHerdSize/iceBreakHerdSize are each
+  // kind's default threshold when a template doesn't override one.
   fenceThickness: 12,
   fenceBreakHerdSize: 20,
+  logBreakHerdSize: 12,
+  iceBreakHerdSize: 45,
   fenceColor: 0xb08968,
 
   // Rivers (spec section 12.3): don't block movement outright - anyone
@@ -164,6 +175,14 @@ export const GAME_CONFIG = {
   // which only worked because the herd was assumed to never turn back.
   worldCellSize: 600, // px per cell, both axes
   worldLoadRadiusCells: 2, // cells kept loaded in each direction -> a 5x5 window around the player
+  // Crossing a cell boundary can make several cells enter/leave the window
+  // at once; instantiating (or destroying) all of their Phaser objects
+  // synchronously in a single frame is what caused visible movement
+  // stutter. Draining a few per frame instead spreads that cost out -
+  // unloads are cheaper (pure destroy, no generation/noise sampling) so
+  // more of them can happen per frame than loads.
+  worldMaxLoadsPerFrame: 2,
+  worldMaxUnloadsPerFrame: 4,
 
   // River noise field (v0.3 M-G3, spec section 3.3): independent of biome
   // rings, so a river can wind across more than one biome band. A cell

@@ -48,7 +48,7 @@ export const BIOMES: Biome[] = [
     fadeInEnd: 1800,
     fadeOutStart: 2200,
     fadeOutEnd: 3000,
-    templates: [byId("fence-choice"), byId("slalom")],
+    templates: [byId("fence-choice"), byId("slalom"), byId("deadfall")],
     groundTheme: { backgroundColor: 0x1b5e20, backgroundLineColor: 0x123f16 },
   },
   {
@@ -66,7 +66,7 @@ export const BIOMES: Biome[] = [
     fadeInEnd: 4500,
     fadeOutStart: 6000,
     fadeOutEnd: 7000,
-    templates: [byId("river-reward"), byId("compound-choice")],
+    templates: [byId("river-reward"), byId("compound-choice"), byId("ice-gate")],
     groundTheme: { backgroundColor: 0xdfe9f2, backgroundLineColor: 0xc3d2e0 },
   },
   {
