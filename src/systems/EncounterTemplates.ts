@@ -59,6 +59,10 @@ export const ENCOUNTER_TEMPLATES: EncounterTemplate[] = [
   {
     id: "recruit-lure",
     minProgress: 0,
+    // Phased out once harder/denser late-game templates are eligible (spec
+    // section 8, Band 3) so a run doesn't keep drawing its easiest layouts
+    // forever - see rock-gate and twin-lure below for the same treatment.
+    maxProgress: 1800,
     weight: 1,
     length: 300,
     wildGroups: [{ x: 170, y: -170, count: 4, spread: 45 }],
@@ -76,6 +80,7 @@ export const ENCOUNTER_TEMPLATES: EncounterTemplate[] = [
   {
     id: "rock-gate",
     minProgress: 0,
+    maxProgress: 2200,
     weight: 1,
     length: 320,
     wildGroups: [{ x: 100, y: -195, count: 3, spread: 35 }],
@@ -150,6 +155,63 @@ export const ENCOUNTER_TEMPLATES: EncounterTemplate[] = [
     wildGroups: [{ x: 150, y: -160, count: 4, spread: 40 }],
     rocks: [],
     fences: [{ x: 0, y: -320, width: 200 }],
+    rivers: [],
+  },
+
+  // G. Twin Lure - two reward groups on opposite sides instead of one safe
+  // lane vs one reward lane. The center rocks are offset enough that going
+  // straight isn't free, so the player picks a side rather than getting
+  // both. An early-game variety piece, phased out alongside recruit-lure/
+  // rock-gate.
+  {
+    id: "twin-lure",
+    minProgress: 150,
+    maxProgress: 1400,
+    weight: 1,
+    length: 320,
+    wildGroups: [
+      { x: -170, y: -200, count: 3, spread: 40 },
+      { x: 170, y: -200, count: 3, spread: 40 },
+    ],
+    rocks: [
+      { x: -40, y: -160 },
+      { x: 40, y: -240 },
+    ],
+    fences: [],
+    rivers: [],
+  },
+
+  // H. River Crossing - the river covers most of the lane; a narrow dry
+  // lane survives on the far left, marked by a rock at its edge so it
+  // doesn't read as just open field. No reward either way - this is
+  // river-reward's plainer, more frequent sibling, since a river-reward
+  // pool of one meant most runs barely saw a river at all.
+  {
+    id: "river-crossing",
+    minProgress: 700,
+    weight: 1,
+    length: 340,
+    wildGroups: [],
+    rocks: [{ x: -170, y: -190 }],
+    fences: [],
+    rivers: [{ x: 40, y: -200, width: 280, height: 100 }],
+  },
+
+  // I. Gauntlet - a compact late-game combo: a slalom-style rock pair,
+  // then a fence, with the reward placed beyond the fence rather than
+  // before it (compound-choice's reward comes first) so pushing through
+  // is what pays off, not just approaching.
+  {
+    id: "gauntlet",
+    minProgress: 2800,
+    weight: 1.3,
+    length: 480,
+    wildGroups: [{ x: 190, y: -420, count: 4, spread: 40 }],
+    rocks: [
+      { x: -60, y: -150 },
+      { x: 70, y: -230 },
+    ],
+    fences: [{ x: -20, y: -330, width: 220 }],
     rivers: [],
   },
 ];

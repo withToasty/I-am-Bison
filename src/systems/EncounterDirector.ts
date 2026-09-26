@@ -29,6 +29,9 @@ export class EncounterDirector {
   private frontierY: number;
   private active: RuntimeEncounter[] = [];
   private lastSpawnedTemplateId = "";
+  // Most recent template ids, newest last - see pickTemplate().
+  private recentTemplateIds: string[] = [];
+  private lastAnchorX = 0;
   private encounterCount = 0;
 
   constructor(
@@ -79,17 +82,26 @@ export class EncounterDirector {
   }
 
   // Weighted random pick among templates eligible at this progress,
-  // excluding the immediately previous template so it never repeats
-  // back-to-back (spec section 9). Falls back to the full template list if
-  // nothing is eligible yet (shouldn't normally happen since template A/B
-  // both open at progress 0).
+  // excluding whichever of the last encounterHistoryWindow templates are
+  // still in the eligible pool (spec section 9: avoid the same template
+  // more than twice within a short rolling window). Falls back to
+  // progressively smaller exclusion sets - and finally to the full
+  // template list - if that would otherwise leave nothing to pick from.
   private pickTemplate(progress: number): EncounterTemplate {
     const eligible = ENCOUNTER_TEMPLATES.filter(
       (t) => progress >= t.minProgress && (t.maxProgress === undefined || progress <= t.maxProgress),
     );
     const pool = eligible.length > 0 ? eligible : ENCOUNTER_TEMPLATES;
-    const withoutLast = pool.filter((t) => t.id !== this.lastSpawnedTemplateId);
-    const finalPool = withoutLast.length > 0 ? withoutLast : pool;
+
+    let finalPool = pool;
+    for (let excludeCount = GAME_CONFIG.encounterHistoryWindow; excludeCount > 0; excludeCount--) {
+      const excluded = new Set(this.recentTemplateIds.slice(-excludeCount));
+      const filtered = pool.filter((t) => !excluded.has(t.id));
+      if (filtered.length > 0) {
+        finalPool = filtered;
+        break;
+      }
+    }
 
     const totalWeight = finalPool.reduce((sum, t) => sum + t.weight, 0);
     let roll = Phaser.Math.FloatBetween(0, totalWeight);
@@ -105,10 +117,16 @@ export class EncounterDirector {
     if (!template) return;
 
     const anchorY = this.frontierY;
-    const anchorX = Phaser.Math.FloatBetween(
+    // Drift from the previous anchor rather than resampling independently,
+    // so the course meanders left/right instead of snapping back toward
+    // X=0 every chunk - still clamped to the same absolute bound so it
+    // can't wander indefinitely far from the origin (spec section 10).
+    const anchorX = Phaser.Math.Clamp(
+      this.lastAnchorX + Phaser.Math.FloatBetween(-GAME_CONFIG.encounterAnchorStep, GAME_CONFIG.encounterAnchorStep),
       -GAME_CONFIG.encounterMaxCenterOffset,
       GAME_CONFIG.encounterMaxCenterOffset,
     );
+    this.lastAnchorX = anchorX;
 
     const runtime: RuntimeEncounter = {
       templateId: template.id,
@@ -156,9 +174,11 @@ export class EncounterDirector {
 
     this.active.push(runtime);
     this.lastSpawnedTemplateId = template.id;
+    this.recentTemplateIds.push(template.id);
+    if (this.recentTemplateIds.length > GAME_CONFIG.encounterHistoryWindow) this.recentTemplateIds.shift();
     this.encounterCount++;
 
-    this.frontierY = anchorY - Math.max(template.length, GAME_CONFIG.encounterChunkSpacing);
+    this.frontierY = anchorY - template.length - GAME_CONFIG.encounterChunkGap;
   }
 
   private cleanupBehind(leaderY: number): void {
