@@ -35,6 +35,7 @@ export const GAME_CONFIG = {
   // same operation - a bison outside the active herd joins once the herd
   // center comes within joinRadius of it.
   joinRadius: 100,
+  joinSettleTime: 1.0, // seconds a newly joined bison is excluded from the herd centroid
 
   // Camera
   cameraLerp: 0.08,

@@ -105,6 +105,10 @@ export class Herd {
       b.y += b.vy * dt;
       b.syncGraphics();
 
+      if (b.settleTimer > 0) {
+        b.settleTimer = Math.max(0, b.settleTimer - dt);
+      }
+
       if (distToCenter > GAME_CONFIG.lostRadius) {
         b.timeBeyondLostRadius += dt;
         if (b.timeBeyondLostRadius >= GAME_CONFIG.lostDelay) {
@@ -155,8 +159,7 @@ export class Herd {
     for (const b of joined) {
       b.gfx.setFillStyle(GAME_CONFIG.bisonColor);
       b.timeBeyondLostRadius = 0;
-      b.vx = Math.cos(this.heading) * GAME_CONFIG.baseSpeed;
-      b.vy = Math.sin(this.heading) * GAME_CONFIG.baseSpeed;
+      b.settleTimer = GAME_CONFIG.joinSettleTime;
       this.bison.push(b);
     }
 
@@ -164,15 +167,19 @@ export class Herd {
   }
 
   private updateCenter(): void {
-    if (this.bison.length === 0) return; // keep last known center; nothing left to average
-
     let sumX = 0;
     let sumY = 0;
+    let count = 0;
     for (const b of this.bison) {
+      if (b.settleTimer > 0) continue; // still settling in - don't let it skew the centroid yet
       sumX += b.x;
       sumY += b.y;
+      count++;
     }
-    this.centerX = sumX / this.bison.length;
-    this.centerY = sumY / this.bison.length;
+
+    if (count === 0) return; // keep last known center; nothing settled to average
+
+    this.centerX = sumX / count;
+    this.centerY = sumY / count;
   }
 }

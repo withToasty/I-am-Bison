@@ -9,6 +9,11 @@ export class Bison {
   vx = 0;
   vy = 0;
   timeBeyondLostRadius = 0;
+  // Counts down after joining/rejoining the herd. While positive, this
+  // bison is excluded from the herd's center-of-mass calculation so its
+  // still-distant position doesn't yank the rest of the herd toward it -
+  // it still gets pulled in itself via normal cohesion/alignment.
+  settleTimer = 0;
   // Fixed at spawn: how quickly this individual's velocity can realign to a
   // changing herd heading. Most bison are close to 1; a few are naturally
   // slow and risk falling behind during a sharp, sustained turn.
