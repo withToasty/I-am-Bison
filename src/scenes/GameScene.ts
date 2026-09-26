@@ -7,6 +7,7 @@ import { Fence } from "../obstacles/Fence";
 import { River } from "../obstacles/River";
 import { SteeringInput } from "../input/SteeringInput";
 import { spawnFences, spawnRivers, spawnRocks, spawnWildBison } from "../systems/SpawnSystem";
+import { HUD } from "../ui/HUD";
 
 // Herd sizes bound to the 1-5 keys so 10-vs-50 (and beyond) can be felt
 // back-to-back without recruitment/loss systems, which arrive in later
@@ -31,6 +32,11 @@ export class GameScene extends Phaser.Scene {
   private rivers: River[] = [];
   private totalRecruited = 0;
   private totalDestroyed = 0;
+  private hud!: HUD;
+  private distanceTraveled = 0;
+  private maxHerdSize = 0;
+  private prevCenterX = 0;
+  private prevCenterY = 0;
 
   constructor() {
     super("GameScene");
@@ -58,12 +64,22 @@ export class GameScene extends Phaser.Scene {
     this.fences = spawnFences(this);
     this.totalRecruited = 0;
     this.totalDestroyed = 0;
+    this.distanceTraveled = 0;
+    this.maxHerdSize = this.herd.size;
+    this.prevCenterX = this.herd.centerX;
+    this.prevCenterY = this.herd.centerY;
     this.steering = new SteeringInput(this);
 
     this.headingMarker = this.add.graphics();
 
+    this.hud = new HUD(this);
+
+    // Dev-only readout for testing systems that don't have a "real" HUD yet
+    // (turn rate, recruitment, losses...). Anchored to the bottom so it
+    // never competes with the actual HUD above.
     this.devText = this.add
-      .text(12, 12, "", { fontFamily: "monospace", fontSize: "14px", color: "#eaf3ea" })
+      .text(12, this.scale.height - 12, "", { fontFamily: "monospace", fontSize: "14px", color: "#eaf3ea" })
+      .setOrigin(0, 1)
       .setScrollFactor(0);
 
     this.cameraTarget = this.add.zone(this.herd.centerX, this.herd.centerY, 1, 1);
@@ -87,18 +103,30 @@ export class GameScene extends Phaser.Scene {
     this.totalRecruited += this.herd.recruit(this.wildBison);
     this.totalRecruited += this.herd.recruit(this.herd.strandedBison);
 
+    // Score (spec sections 15-16): distance is the herd center's total path
+    // length traveled, not straight-line displacement, so it only ever
+    // grows - matching "how far the run traveled".
+    this.distanceTraveled += Math.hypot(
+      this.herd.centerX - this.prevCenterX,
+      this.herd.centerY - this.prevCenterY,
+    );
+    this.prevCenterX = this.herd.centerX;
+    this.prevCenterY = this.herd.centerY;
+    this.maxHerdSize = Math.max(this.maxHerdSize, this.herd.size);
+
     this.cameraTarget.setPosition(this.herd.centerX, this.herd.centerY);
     this.background.tilePositionX = this.herd.centerX;
     this.background.tilePositionY = this.herd.centerY;
 
     this.drawHeadingMarker();
+    this.hud.update(this.herd.size, this.distanceTraveled / GAME_CONFIG.pixelsPerMeter);
     this.updateDevText();
   }
 
   private updateDevText(): void {
     const turnPercent = Math.round((this.herd.turnRate / GAME_CONFIG.baseTurnRate) * 100);
     this.devText.setText(
-      `HERD ${this.herd.size}  TURN RATE ${turnPercent}%  LOST ${this.herd.totalLost}  RECRUITED ${this.totalRecruited}  WILD LEFT ${this.wildBison.length}  DESTROYED ${this.totalDestroyed}\n1-5: test herd sizes (${TEST_HERD_SIZES.join("/")})`,
+      `HERD ${this.herd.size}  MAX HERD ${this.maxHerdSize}  TURN RATE ${turnPercent}%  LOST ${this.herd.totalLost}  RECRUITED ${this.totalRecruited}  WILD LEFT ${this.wildBison.length}  DESTROYED ${this.totalDestroyed}\n1-5: test herd sizes (${TEST_HERD_SIZES.join("/")})`,
     );
   }
 
@@ -143,5 +171,6 @@ export class GameScene extends Phaser.Scene {
 
   private handleResize(gameSize: Phaser.Structs.Size): void {
     this.background.setSize(gameSize.width, gameSize.height);
+    this.devText.setY(gameSize.height - 12);
   }
 }

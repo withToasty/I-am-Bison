@@ -66,6 +66,10 @@ export const GAME_CONFIG = {
   riverColor: 0x2f6690,
   riverAlpha: 0.55,
 
+  // Score (spec sections 15-16): purely a display conversion, doesn't
+  // affect gameplay.
+  pixelsPerMeter: 20,
+
   // Camera
   cameraLerp: 0.08,
 
