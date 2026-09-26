@@ -79,6 +79,12 @@ export const GAME_CONFIG = {
   riverCohesionMultiplier: 0.4,
   riverColor: 0x2f6690,
   riverAlpha: 0.55,
+  riverFlowSpeed: 26, // px/s the ripple texture scrolls, suggesting current
+
+  // Fence posts (visual only): evenly spaced vertical ticks along the rail
+  // so a fence reads as a built structure rather than a flat bar.
+  fencePostSpacing: 46,
+  fencePostWidth: 6,
 
   // Score (spec sections 15-16): purely a display conversion, doesn't
   // affect gameplay.

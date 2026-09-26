@@ -9,6 +9,7 @@ import { River } from "../obstacles/River";
 import { SteeringInput } from "../input/SteeringInput";
 import { EncounterDirector } from "../systems/EncounterDirector";
 import { HUD } from "../ui/HUD";
+import { lighten, darken } from "../utils/color";
 import type { GameOverData } from "./GameOverScene";
 
 // Herd sizes bound to the 1-5 keys so 10-vs-50 (and beyond) can be felt
@@ -63,6 +64,7 @@ export class GameScene extends Phaser.Scene {
     this.generateGroundTexture();
     this.generateDustTexture();
     this.generateDebrisTexture();
+    this.generateRiverTexture();
 
     this.background = this.add
       .tileSprite(0, 0, this.scale.width, this.scale.height, "ground")
@@ -192,6 +194,7 @@ export class GameScene extends Phaser.Scene {
     this.updateCameraZoom();
     this.updateCameraTarget();
     this.updateDust(dt);
+    for (const river of this.rivers) river.update(dt);
 
     this.drawBison();
     this.drawHeadingMarker();
@@ -389,16 +392,34 @@ export class GameScene extends Phaser.Scene {
       else byColor.set(b.color, [b]);
     }
 
+    const r = GAME_CONFIG.bisonRadius;
     for (const [color, group] of byColor) {
-      g.fillStyle(color, 1);
+      // Base body + a thin darker rim, still one fill/stroke pass per color
+      // group rather than per bison.
       g.beginPath();
       for (const b of group) {
         // moveTo repositions the path's current point without drawing a
         // line, so each arc() below starts its own independent subpath
         // instead of being connected to the previous circle.
-        g.moveTo(b.x + GAME_CONFIG.bisonRadius, b.y);
-        g.arc(b.x, b.y, GAME_CONFIG.bisonRadius, 0, Math.PI * 2);
+        g.moveTo(b.x + r, b.y);
+        g.arc(b.x, b.y, r, 0, Math.PI * 2);
       }
+      g.fillStyle(color, 1);
+      g.fillPath();
+      g.lineStyle(1.5, darken(color, 0.28), 0.55);
+      g.strokePath();
+
+      // A small lighter dome offset toward the upper-left of each body so a
+      // flat fill reads as rounded rather than a disc.
+      const hr = r * 0.5;
+      const ox = -r * 0.28;
+      const oy = -r * 0.32;
+      g.beginPath();
+      for (const b of group) {
+        g.moveTo(b.x + ox + hr, b.y + oy);
+        g.arc(b.x + ox, b.y + oy, hr, 0, Math.PI * 2);
+      }
+      g.fillStyle(lighten(color, 0.22), 0.5);
       g.fillPath();
     }
   }
@@ -420,9 +441,50 @@ export class GameScene extends Phaser.Scene {
     const g = this.make.graphics({ x: 0, y: 0 }, false);
     g.fillStyle(GAME_CONFIG.backgroundColor);
     g.fillRect(0, 0, size, size);
-    g.lineStyle(1, GAME_CONFIG.backgroundLineColor, 1);
+
+    // A couple of soft, randomly placed patches per tile break up the flat
+    // fill so the ground reads as grass rather than a solid color. Kept
+    // subtle (low alpha, no hard edges beyond the blob itself) since the
+    // tile repeats and an obvious motif would read as an artifact.
+    const patchColors = [lighten(GAME_CONFIG.backgroundColor, 0.05), darken(GAME_CONFIG.backgroundColor, 0.05)];
+    for (let i = 0; i < 3; i++) {
+      const color = patchColors[i % patchColors.length];
+      g.fillStyle(color, 0.35);
+      g.fillEllipse(
+        Phaser.Math.Between(0, size),
+        Phaser.Math.Between(0, size),
+        Phaser.Math.Between(size * 0.3, size * 0.55),
+        Phaser.Math.Between(size * 0.2, size * 0.4),
+      );
+    }
+
+    // The grid line is kept mainly for scale/motion cues while moving, so
+    // it stays thin and low-contrast rather than reading as literal terrain.
+    g.lineStyle(1, GAME_CONFIG.backgroundLineColor, 0.35);
     g.strokeRect(0, 0, size, size);
     g.generateTexture("ground", size, size);
+    g.destroy();
+  }
+
+  // Ripple bands baked into a small tile; River scrolls its tilePosition to
+  // suggest current without any per-frame redraw.
+  private generateRiverTexture(): void {
+    if (this.textures.exists("river-flow")) return;
+
+    const size = 48;
+    const g = this.make.graphics({ x: 0, y: 0 }, false);
+    g.fillStyle(GAME_CONFIG.riverColor, 1);
+    g.fillRect(0, 0, size, size);
+
+    g.fillStyle(lighten(GAME_CONFIG.riverColor, 0.12), 0.5);
+    g.fillRect(0, 6, size, 5);
+    g.fillRect(0, 27, size, 4);
+
+    g.fillStyle(darken(GAME_CONFIG.riverColor, 0.12), 0.4);
+    g.fillRect(0, 16, size, 4);
+    g.fillRect(0, 38, size, 5);
+
+    g.generateTexture("river-flow", size, size);
     g.destroy();
   }
 
