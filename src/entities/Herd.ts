@@ -1,6 +1,7 @@
 import Phaser from "phaser";
 import { GAME_CONFIG } from "../config/gameConfig";
 import { Bison } from "./Bison";
+import { Rock } from "../obstacles/Rock";
 
 // Lightweight Boids-inspired herd: cohesion pulls bison toward the herd
 // center, separation keeps them from overlapping, and alignment blends each
@@ -164,6 +165,30 @@ export class Herd {
     }
 
     return joined.length;
+  }
+
+  // Rocks are solid and unbreakable (spec 12.1): a colliding bison is shoved
+  // clear and knocked outward. That's generally a recoverable bump, but hard
+  // enough - or already near the edge of the herd - it can push a bison past
+  // lostRadius and into a real separation, same as an aggressive turn.
+  handleRockCollisions(rocks: Rock[]): void {
+    for (const b of this.bison) {
+      for (const rock of rocks) {
+        const dx = b.x - rock.x;
+        const dy = b.y - rock.y;
+        const dist = Math.hypot(dx, dy);
+        const minDist = rock.radius + GAME_CONFIG.bisonRadius;
+        if (dist > 0 && dist < minDist) {
+          const nx = dx / dist;
+          const ny = dy / dist;
+          b.x += nx * (minDist - dist);
+          b.y += ny * (minDist - dist);
+          b.vx += nx * GAME_CONFIG.rockKnockback;
+          b.vy += ny * GAME_CONFIG.rockKnockback;
+          b.syncGraphics();
+        }
+      }
+    }
   }
 
   private updateCenter(): void {

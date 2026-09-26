@@ -1,6 +1,7 @@
 import Phaser from "phaser";
 import { GAME_CONFIG } from "../config/gameConfig";
 import { WildBison } from "../entities/WildBison";
+import { Rock } from "../obstacles/Rock";
 
 interface WildGroup {
   x: number;
@@ -33,4 +34,19 @@ export function spawnWildBison(scene: Phaser.Scene): WildBison[] {
   }
 
   return wildBison;
+}
+
+// Placeholder placement for v0.1 (spec section 12.1): a handful of rocks
+// sitting roughly between spawn and the wild bison groups above, so avoiding
+// one is a real choice on the way to a recruit rather than an afterthought.
+const ROCK_POSITIONS: { x: number; y: number }[] = [
+  { x: 40, y: -60 },
+  { x: -110, y: -160 },
+  { x: 150, y: -150 },
+  { x: -40, y: -300 },
+  { x: 260, y: -330 },
+];
+
+export function spawnRocks(scene: Phaser.Scene): Rock[] {
+  return ROCK_POSITIONS.map(({ x, y }) => new Rock(scene, x, y));
 }

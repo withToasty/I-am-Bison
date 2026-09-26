@@ -2,8 +2,9 @@ import Phaser from "phaser";
 import { GAME_CONFIG } from "../config/gameConfig";
 import { Herd } from "../entities/Herd";
 import { WildBison } from "../entities/WildBison";
+import { Rock } from "../obstacles/Rock";
 import { SteeringInput } from "../input/SteeringInput";
-import { spawnWildBison } from "../systems/SpawnSystem";
+import { spawnRocks, spawnWildBison } from "../systems/SpawnSystem";
 
 // Herd sizes bound to the 1-5 keys so 10-vs-50 (and beyond) can be felt
 // back-to-back without recruitment/loss systems, which arrive in later
@@ -23,6 +24,7 @@ export class GameScene extends Phaser.Scene {
   private devText!: Phaser.GameObjects.Text;
   private herdSize = GAME_CONFIG.herdSize;
   private wildBison: WildBison[] = [];
+  private rocks: Rock[] = [];
   private totalRecruited = 0;
 
   constructor() {
@@ -43,6 +45,7 @@ export class GameScene extends Phaser.Scene {
 
     this.herd = new Herd(this, this.herdSize, 0, 0);
     this.wildBison = spawnWildBison(this);
+    this.rocks = spawnRocks(this);
     this.totalRecruited = 0;
     this.steering = new SteeringInput(this);
 
@@ -68,6 +71,7 @@ export class GameScene extends Phaser.Scene {
     const dt = Math.min(delta, GAME_CONFIG.maxDeltaMs) / 1000;
 
     this.herd.update(dt, this.steering.direction);
+    this.herd.handleRockCollisions(this.rocks);
     this.totalRecruited += this.herd.recruit(this.wildBison);
     this.totalRecruited += this.herd.recruit(this.herd.strandedBison);
 
