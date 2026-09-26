@@ -1,7 +1,9 @@
 import Phaser from "phaser";
 import { GAME_CONFIG } from "../config/gameConfig";
 import { Herd } from "../entities/Herd";
+import { WildBison } from "../entities/WildBison";
 import { SteeringInput } from "../input/SteeringInput";
+import { spawnWildBison } from "../systems/SpawnSystem";
 
 // Herd sizes bound to the 1-5 keys so 10-vs-50 (and beyond) can be felt
 // back-to-back without recruitment/loss systems, which arrive in later
@@ -20,6 +22,8 @@ export class GameScene extends Phaser.Scene {
   private headingMarker!: Phaser.GameObjects.Graphics;
   private devText!: Phaser.GameObjects.Text;
   private herdSize = GAME_CONFIG.herdSize;
+  private wildBison: WildBison[] = [];
+  private totalRecruited = 0;
 
   constructor() {
     super("GameScene");
@@ -38,6 +42,8 @@ export class GameScene extends Phaser.Scene {
       .setScrollFactor(0);
 
     this.herd = new Herd(this, this.herdSize, 0, 0);
+    this.wildBison = spawnWildBison(this);
+    this.totalRecruited = 0;
     this.steering = new SteeringInput(this);
 
     this.headingMarker = this.add.graphics();
@@ -62,6 +68,8 @@ export class GameScene extends Phaser.Scene {
     const dt = Math.min(delta, GAME_CONFIG.maxDeltaMs) / 1000;
 
     this.herd.update(dt, this.steering.direction);
+    this.totalRecruited += this.herd.recruit(this.wildBison);
+    this.totalRecruited += this.herd.recruit(this.herd.strandedBison);
 
     this.cameraTarget.setPosition(this.herd.centerX, this.herd.centerY);
     this.background.tilePositionX = this.herd.centerX;
@@ -74,7 +82,7 @@ export class GameScene extends Phaser.Scene {
   private updateDevText(): void {
     const turnPercent = Math.round((this.herd.turnRate / GAME_CONFIG.baseTurnRate) * 100);
     this.devText.setText(
-      `HERD ${this.herd.size}  TURN RATE ${turnPercent}%  LOST ${this.herd.totalLost}\n1-5: test herd sizes (${TEST_HERD_SIZES.join("/")})`,
+      `HERD ${this.herd.size}  TURN RATE ${turnPercent}%  LOST ${this.herd.totalLost}  RECRUITED ${this.totalRecruited}  WILD LEFT ${this.wildBison.length}\n1-5: test herd sizes (${TEST_HERD_SIZES.join("/")})`,
     );
   }
 

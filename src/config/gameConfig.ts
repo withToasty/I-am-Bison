@@ -31,6 +31,11 @@ export const GAME_CONFIG = {
   lostRadius: 190,
   lostDelay: 1.0,
 
+  // Wild recruitment (spec section 11) and rejoining strays. Both are the
+  // same operation - a bison outside the active herd joins once the herd
+  // center comes within joinRadius of it.
+  joinRadius: 100,
+
   // Camera
   cameraLerp: 0.08,
 
@@ -42,6 +47,8 @@ export const GAME_CONFIG = {
   backgroundColor: 0x2e7d32,
   backgroundLineColor: 0x266b2b,
   bisonColor: 0x6b4423,
+  wildBisonColor: 0xd4a017, // not yet in your herd - tinted gold so it reads as "recruit me"
+  strandedBisonColor: 0x8a7f6b, // fell out of your herd - dimmed, but still recruitable
   headingMarkerColor: 0xffee58,
   headingMarkerLength: 90,
 };

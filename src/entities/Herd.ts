@@ -119,6 +119,7 @@ export class Herd {
       for (const lost of stragglers) {
         lost.vx = 0;
         lost.vy = 0;
+        lost.gfx.setFillStyle(GAME_CONFIG.strandedBisonColor);
         this.strandedBison.push(lost);
       }
       const lostSet = new Set(stragglers);
@@ -127,6 +128,39 @@ export class Herd {
     }
 
     this.updateCenter();
+  }
+
+  // Pulls any bison in `pool` within joinRadius of the herd center into the
+  // active herd, mutating `pool` in place. The same operation serves wild
+  // bison waiting to be recruited and previously-stranded bison the herd
+  // has circled back around to - both are just "not currently in the herd".
+  // Returns how many joined.
+  recruit(pool: Bison[]): number {
+    if (pool.length === 0) return 0;
+
+    const joined: Bison[] = [];
+    for (const candidate of pool) {
+      const dist = Math.hypot(candidate.x - this.centerX, candidate.y - this.centerY);
+      if (dist <= GAME_CONFIG.joinRadius) {
+        joined.push(candidate);
+      }
+    }
+    if (joined.length === 0) return 0;
+
+    const joinedSet = new Set(joined);
+    for (let i = pool.length - 1; i >= 0; i--) {
+      if (joinedSet.has(pool[i])) pool.splice(i, 1);
+    }
+
+    for (const b of joined) {
+      b.gfx.setFillStyle(GAME_CONFIG.bisonColor);
+      b.timeBeyondLostRadius = 0;
+      b.vx = Math.cos(this.heading) * GAME_CONFIG.baseSpeed;
+      b.vy = Math.sin(this.heading) * GAME_CONFIG.baseSpeed;
+      this.bison.push(b);
+    }
+
+    return joined.length;
   }
 
   private updateCenter(): void {

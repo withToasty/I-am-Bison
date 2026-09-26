@@ -15,11 +15,11 @@ export class Bison {
   readonly agility: number;
   readonly gfx: Phaser.GameObjects.Arc;
 
-  constructor(scene: Phaser.Scene, x: number, y: number) {
+  constructor(scene: Phaser.Scene, x: number, y: number, color: number = GAME_CONFIG.bisonColor) {
     this.x = x;
     this.y = y;
     this.agility = Phaser.Math.FloatBetween(GAME_CONFIG.minAgility, GAME_CONFIG.maxAgility);
-    this.gfx = scene.add.circle(x, y, GAME_CONFIG.bisonRadius, GAME_CONFIG.bisonColor);
+    this.gfx = scene.add.circle(x, y, GAME_CONFIG.bisonRadius, color);
   }
 
   syncGraphics(): void {
