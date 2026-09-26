@@ -5,7 +5,11 @@ import { GameScene } from "./scenes/GameScene";
 const parent = document.getElementById("app")!;
 
 const game = new Phaser.Game({
-  type: Phaser.AUTO,
+  // Force the Canvas2D renderer rather than AUTO (which prefers WebGL).
+  // This prototype only ever draws circles, a line, and a tiled background -
+  // nothing that benefits from WebGL - and Canvas2D is far more likely to
+  // work unmodified in a locked-down/sandboxed embedding.
+  type: Phaser.CANVAS,
   parent: "app",
   backgroundColor: "#1a1a1a",
   scale: {
