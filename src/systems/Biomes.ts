@@ -1,4 +1,5 @@
 import { ENCOUNTER_TEMPLATES, EncounterTemplate } from "./EncounterTemplates";
+import { ringWobbleScale } from "./WorldNoise";
 
 // Ring-based biome field (v0.3 M-G2, docs/v0.3-biome-map.md section 3.1).
 // Each biome owns a radius-from-spawn band; adjacent bands overlap so a
@@ -86,26 +87,44 @@ function smoothstep(t: number): number {
   return c * c * (3 - 2 * c);
 }
 
-function weightAt(radius: number, b: Biome): number {
-  if (b.fadeInEnd > b.fadeInStart && radius < b.fadeInEnd) {
-    if (radius <= b.fadeInStart) return 0;
-    return smoothstep((radius - b.fadeInStart) / (b.fadeInEnd - b.fadeInStart));
+// `wobble` scales every one of this biome's threshold radii by the same
+// factor (v0.3 M-G3, spec section 3.2), so the boundary bulges in/out with
+// compass angle instead of being a perfect circle. Scaling both endpoints
+// of a fade band by the same positive factor can't reorder them or flip
+// the band's direction, and grassland's degenerate 0/0 fade-in and
+// beyond's degenerate Infinity/Infinity fade-out both survive the
+// multiply unchanged (0*n=0, Infinity*n=Infinity for any finite n>0).
+function weightAt(radius: number, b: Biome, wobble: number): number {
+  const fadeInStart = b.fadeInStart * wobble;
+  const fadeInEnd = b.fadeInEnd * wobble;
+  const fadeOutStart = b.fadeOutStart * wobble;
+  const fadeOutEnd = b.fadeOutEnd * wobble;
+
+  if (fadeInEnd > fadeInStart && radius < fadeInEnd) {
+    if (radius <= fadeInStart) return 0;
+    return smoothstep((radius - fadeInStart) / (fadeInEnd - fadeInStart));
   }
-  if (b.fadeOutEnd > b.fadeOutStart && radius > b.fadeOutStart) {
-    if (radius >= b.fadeOutEnd) return 0;
-    return 1 - smoothstep((radius - b.fadeOutStart) / (b.fadeOutEnd - b.fadeOutStart));
+  if (fadeOutEnd > fadeOutStart && radius > fadeOutStart) {
+    if (radius >= fadeOutEnd) return 0;
+    return 1 - smoothstep((radius - fadeOutStart) / (fadeOutEnd - fadeOutStart));
   }
   return 1;
 }
 
 // Normalized so the returned weights always sum to 1 (barring the
 // zero-biome fallback below, which shouldn't occur given full ring
-// coverage from radius 0 to infinity).
-export function biomeWeightsAt(radius: number): Map<string, number> {
+// coverage from radius 0 to infinity). Takes world coordinates rather than
+// a bare radius so the ring-wobble angle (and the noise it samples) can be
+// derived from the same point.
+export function biomeWeightsAt(x: number, y: number, runSeed: number): Map<string, number> {
+  const radius = Math.hypot(x, y);
+  const angle = Math.atan2(y, x);
+  const wobble = ringWobbleScale(angle, runSeed);
+
   const raw = new Map<string, number>();
   let total = 0;
   for (const b of BIOMES) {
-    const w = weightAt(radius, b);
+    const w = weightAt(radius, b, wobble);
     if (w > 0) {
       raw.set(b.id, w);
       total += w;

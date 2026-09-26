@@ -152,6 +152,25 @@ export const GAME_CONFIG = {
   worldCellSize: 600, // px per cell, both axes
   worldLoadRadiusCells: 2, // cells kept loaded in each direction -> a 5x5 window around the player
 
+  // River noise field (v0.3 M-G3, spec section 3.3): independent of biome
+  // rings, so a river can wind across more than one biome band. A cell
+  // whose noise value exceeds the threshold is forced to a river template
+  // regardless of what its ring would otherwise pick. riverNoiseScale is
+  // the noise field's feature size (px) - bigger means broader, more
+  // gently winding river bands.
+  riverNoiseScale: 900,
+  riverNoiseThreshold: 0.62,
+
+  // Ring wobble (v0.3 M-G3, spec section 3.2): every biome ring boundary
+  // is scaled by the same per-angle factor, so the boundary reads as an
+  // organic coastline instead of a perfect circle without ever crossing or
+  // gapping an adjacent ring (they all warp together). ringWobbleAmount is
+  // the max +/- fraction a boundary's radius can shift; sampleRadius is
+  // how far apart in noise-space the angle samples are taken from (larger
+  // = slower-changing wobble as you go around).
+  ringWobbleAmount: 0.15,
+  ringWobbleSampleRadius: 3,
+
   // Simulation
   maxDeltaMs: 33, // clamp per-frame dt (~30fps floor) to avoid physics spikes on hitches
 

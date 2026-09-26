@@ -9,6 +9,7 @@ import { River } from "../obstacles/River";
 import { SteeringInput } from "../input/SteeringInput";
 import { WorldGrid } from "../systems/WorldGrid";
 import { BIOMES, biomeWeightsAt } from "../systems/Biomes";
+import { isRiverZone } from "../systems/WorldNoise";
 import { HUD } from "../ui/HUD";
 import { lighten, darken } from "../utils/color";
 import type { GameOverData } from "./GameOverScene";
@@ -264,8 +265,9 @@ export class GameScene extends Phaser.Scene {
   // dominant*(1-wSecondary) + secondary*wSecondary, i.e. a true linear
   // blend - not an approximation.
   private updateGroundBlend(): void {
-    const radius = Math.hypot(this.herd.leader.x, this.herd.leader.y);
-    const sorted = [...biomeWeightsAt(radius).entries()].sort((a, b) => b[1] - a[1]);
+    const sorted = [...biomeWeightsAt(this.herd.leader.x, this.herd.leader.y, this.worldGrid.seed).entries()].sort(
+      (a, b) => b[1] - a[1],
+    );
     const [primaryId] = sorted[0];
     const secondary = sorted[1];
 
@@ -391,15 +393,17 @@ export class GameScene extends Phaser.Scene {
   private updateDevText(): void {
     const turnPercent = Math.round((this.herd.turnRate / GAME_CONFIG.baseTurnRate) * 100);
     const cell = this.worldGrid.lastCell;
-    const radius = Math.round(Math.hypot(this.herd.leader.x, this.herd.leader.y));
-    const biomeMix = [...biomeWeightsAt(radius).entries()]
+    const leader = this.herd.leader;
+    const radius = Math.round(Math.hypot(leader.x, leader.y));
+    const biomeMix = [...biomeWeightsAt(leader.x, leader.y, this.worldGrid.seed).entries()]
       .sort((a, b) => b[1] - a[1])
       .map(([id, w]) => `${id} ${Math.round(w * 100)}%`)
       .join(" / ");
+    const river = isRiverZone(leader.x, leader.y, this.worldGrid.seed) ? " RIVER-ZONE" : "";
     this.devText.setText(
       `HERD ${this.herd.size}  MAX HERD ${this.maxHerdSize}  TURN RATE ${turnPercent}%  LOST ${this.herd.totalLost}  RECRUITED ${this.totalRecruited}  WILD LEFT ${this.wildBison.length}  DESTROYED ${this.totalDestroyed}\n` +
         `CELLS LOADED ${this.worldGrid.loadedCount}  LAST CELL (${cell.x},${cell.y})  LAST TEMPLATE ${this.worldGrid.lastTemplate}\n` +
-        `RADIUS ${radius}  BIOME ${biomeMix}\n` +
+        `RADIUS ${radius}  BIOME ${biomeMix}${river}\n` +
         `1-5: test herd sizes (${TEST_HERD_SIZES.join("/")})`,
     );
   }

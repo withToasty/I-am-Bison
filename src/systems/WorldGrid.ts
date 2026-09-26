@@ -4,9 +4,16 @@ import { WildBison } from "../entities/WildBison";
 import { Rock } from "../obstacles/Rock";
 import { Fence } from "../obstacles/Fence";
 import { River } from "../obstacles/River";
-import { EncounterTemplate } from "./EncounterTemplates";
+import { ENCOUNTER_TEMPLATES, EncounterTemplate } from "./EncounterTemplates";
 import { biomeWeightsAt, getBiome } from "./Biomes";
+import { isRiverZone } from "./WorldNoise";
 import { hashCellSeed, SeededRandom } from "../utils/seededRandom";
+
+// Every template that places a river, regardless of which biome(s) it's
+// otherwise tagged under - the river noise field (WorldNoise.isRiverZone)
+// picks among just these when a cell falls in a "river zone", independent
+// of the biome ring it's in (spec section 3.3).
+const RIVER_TEMPLATES = ENCOUNTER_TEMPLATES.filter((t) => t.rivers.length > 0);
 
 // One cell's currently-instantiated content, plus enough bookkeeping to
 // compute the world diff (section 7, docs/v0.3-biome-map.md) when it
@@ -75,6 +82,10 @@ export class WorldGrid {
     return { x: this.lastCellX, y: this.lastCellY };
   }
 
+  get seed(): number {
+    return this.runSeed;
+  }
+
   // Called every frame from GameScene.update() with the leader's current
   // world position. Cheap to call when the player hasn't crossed a cell
   // boundary - the whole body short-circuits until they have.
@@ -130,8 +141,7 @@ export class WorldGrid {
     const centerY = (cellY + 0.5) * cellSize;
 
     const rng = new SeededRandom(hashCellSeed(cellX, cellY, this.runSeed));
-    const radius = Math.hypot(centerX, centerY);
-    const template = this.pickTemplate(rng, radius);
+    const template = this.pickTemplate(rng, centerX, centerY);
     const rotation = rng.range(0, Math.PI * 2);
     const cos = Math.cos(rotation);
     const sin = Math.sin(rotation);
@@ -193,7 +203,7 @@ export class WorldGrid {
     this.lastCellX = cellX;
     this.lastCellY = cellY;
     this.lastTemplateId = template.id;
-    this.lastBiomeId = [...biomeWeightsAt(radius).entries()].sort((a, b) => b[1] - a[1])[0][0];
+    this.lastBiomeId = [...biomeWeightsAt(centerX, centerY, this.runSeed).entries()].sort((a, b) => b[1] - a[1])[0][0];
   }
 
   private unloadCell(key: string, cell: CellRuntime): void {
@@ -235,13 +245,29 @@ export class WorldGrid {
     this.loaded.delete(key);
   }
 
-  // Combines every biome present at this radius into one weighted pool - a
+  // Combines every biome present at this point into one weighted pool - a
   // template's effective weight is its own authored weight times its
   // biome's local blend weight, so a cell in a 70/30 grassland/forest
   // blend draws from grassland templates 70% as often as it would deeper
   // in pure grassland, not a hard cutoff at the ring boundary.
-  private pickTemplate(rng: SeededRandom, radius: number): EncounterTemplate {
-    const biomeWeights = biomeWeightsAt(radius);
+  //
+  // The river noise field overrides this entirely (spec section 3.3): a
+  // cell in a "river zone" always gets a river template regardless of
+  // which biome ring it's in, which is how a river ends up winding across
+  // more than one biome in a single run rather than only ever appearing
+  // where a ring's own template pool happens to include one.
+  private pickTemplate(rng: SeededRandom, cellCenterX: number, cellCenterY: number): EncounterTemplate {
+    if (isRiverZone(cellCenterX, cellCenterY, this.runSeed)) {
+      const totalRiverWeight = RIVER_TEMPLATES.reduce((sum, t) => sum + t.weight, 0);
+      let riverRoll = rng.range(0, totalRiverWeight);
+      for (const t of RIVER_TEMPLATES) {
+        riverRoll -= t.weight;
+        if (riverRoll <= 0) return t;
+      }
+      return RIVER_TEMPLATES[RIVER_TEMPLATES.length - 1];
+    }
+
+    const biomeWeights = biomeWeightsAt(cellCenterX, cellCenterY, this.runSeed);
     const pool: { template: EncounterTemplate; weight: number }[] = [];
     for (const [biomeId, biomeWeight] of biomeWeights) {
       for (const template of getBiome(biomeId).templates) {
