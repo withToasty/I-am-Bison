@@ -24,7 +24,7 @@ export class Herd {
   centerY: number;
   totalLost = 0;
 
-  constructor(scene: Phaser.Scene, count: number, spawnX: number, spawnY: number) {
+  constructor(count: number, spawnX: number, spawnY: number) {
     this.centerX = spawnX;
     this.centerY = spawnY;
 
@@ -39,7 +39,7 @@ export class Herd {
       const x = spawnX + Math.cos(angle) * radius;
       const y = spawnY + Math.sin(angle) * radius;
       const color = i === 0 ? GAME_CONFIG.leaderColor : GAME_CONFIG.bisonColor;
-      const bison = new Bison(scene, x, y, color);
+      const bison = new Bison(x, y, color);
       // Start already moving with the herd so nobody has to "catch up" from
       // a standstill - that transient looked identical to a straggler.
       bison.vx = Math.cos(this.heading) * GAME_CONFIG.baseSpeed;
@@ -76,7 +76,6 @@ export class Herd {
     leader.vy = Math.sin(this.heading) * GAME_CONFIG.baseSpeed * leaderSpeedMul;
     leader.x += leader.vx * dt;
     leader.y += leader.vy * dt;
-    leader.syncGraphics();
 
     // The herd's "center" is simply the leader's own position now - everyone
     // else clusters around wherever the player actually is, rather than an
@@ -150,7 +149,6 @@ export class Herd {
 
       b.x += b.vx * dt;
       b.y += b.vy * dt;
-      b.syncGraphics();
 
       if (distToLeader > GAME_CONFIG.lostRadius) {
         b.timeBeyondLostRadius += dt;
@@ -196,7 +194,7 @@ export class Herd {
     }
 
     for (const b of joined) {
-      b.gfx.setFillStyle(GAME_CONFIG.bisonColor);
+      b.color = GAME_CONFIG.bisonColor;
       b.timeBeyondLostRadius = 0;
       b.recruitCooldown = 0;
       this.bison.push(b);
@@ -338,8 +336,6 @@ export class Herd {
       b.vx *= scale;
       b.vy *= scale;
     }
-
-    b.syncGraphics();
   }
 
   // Shoves a bison's position clear along the normal from `originX,originY`
@@ -365,7 +361,6 @@ export class Herd {
     const ny = dy / dist;
     b.x += nx * (minDist - dist);
     b.y += ny * (minDist - dist);
-    b.syncGraphics();
     return { x: nx, y: ny };
   }
 
@@ -384,7 +379,7 @@ export class Herd {
       b.vx = 0;
       b.vy = 0;
       b.recruitCooldown = GAME_CONFIG.recruitCooldown;
-      b.gfx.setFillStyle(GAME_CONFIG.strandedBisonColor);
+      b.color = GAME_CONFIG.strandedBisonColor;
       this.strandedBison.push(b);
     }
     this.bison = this.bison.filter((b) => !uniqueLost.has(b));

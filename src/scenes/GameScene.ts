@@ -1,6 +1,7 @@
 import Phaser from "phaser";
 import { GAME_CONFIG } from "../config/gameConfig";
 import { Herd } from "../entities/Herd";
+import { Bison } from "../entities/Bison";
 import { WildBison } from "../entities/WildBison";
 import { Rock } from "../obstacles/Rock";
 import { Fence } from "../obstacles/Fence";
@@ -25,6 +26,7 @@ export class GameScene extends Phaser.Scene {
   private background!: Phaser.GameObjects.TileSprite;
   private cameraTarget!: Phaser.GameObjects.Zone;
   private headingMarker!: Phaser.GameObjects.Graphics;
+  private bisonGraphics!: Phaser.GameObjects.Graphics;
   private devText!: Phaser.GameObjects.Text;
   private herdSize = GAME_CONFIG.herdSize;
   private wildBison: WildBison[] = [];
@@ -71,8 +73,15 @@ export class GameScene extends Phaser.Scene {
     // render on top of them.
     this.rivers = spawnRivers(this);
 
-    this.herd = new Herd(this, this.herdSize, 0, 0);
-    this.wildBison = spawnWildBison(this);
+    // Every bison (leader, followers, wild, stranded) is drawn here as one
+    // batched fill per color, not as individual Arc GameObjects - see
+    // drawBison(). Positioned between rivers and rocks in the display list
+    // so the layering matches the old per-bison-object order (rocks/fences
+    // still render on top).
+    this.bisonGraphics = this.add.graphics();
+
+    this.herd = new Herd(this.herdSize, 0, 0);
+    this.wildBison = spawnWildBison();
     this.rocks = spawnRocks(this);
     this.fences = spawnFences(this);
     this.totalRecruited = 0;
@@ -176,6 +185,7 @@ export class GameScene extends Phaser.Scene {
     this.updateCameraTarget();
     this.updateDust(dt);
 
+    this.drawBison();
     this.drawHeadingMarker();
     this.hud.update(this.herd.size, this.maxDistanceFromSpawn / GAME_CONFIG.pixelsPerMeter);
     this.updateDevText();
@@ -338,6 +348,45 @@ export class GameScene extends Phaser.Scene {
         this.scene.restart({ herdSize: TEST_HERD_SIZES[i] } satisfies GameSceneData);
       });
     });
+  }
+
+  // Every bison (leader, followers, wild, stranded) is drawn here instead of
+  // each owning its own Arc GameObject. Batching same-colored circles into
+  // one filled path per group means overlapping bison are rasterized as a
+  // single shape - drawing them as separate objects left a faint seam at
+  // every shared edge (each circle's anti-aliased boundary compositing
+  // against the one drawn before it) that became a visible dark ring once
+  // enough bison packed together.
+  private drawBison(): void {
+    const g = this.bisonGraphics;
+    g.clear();
+    this.fillBisonBatch(g, this.wildBison);
+    this.fillBisonBatch(g, this.herd.strandedBison);
+    this.fillBisonBatch(g, this.herd.bison);
+  }
+
+  private fillBisonBatch(g: Phaser.GameObjects.Graphics, list: Bison[]): void {
+    if (list.length === 0) return;
+
+    const byColor = new Map<number, Bison[]>();
+    for (const b of list) {
+      const group = byColor.get(b.color);
+      if (group) group.push(b);
+      else byColor.set(b.color, [b]);
+    }
+
+    for (const [color, group] of byColor) {
+      g.fillStyle(color, 1);
+      g.beginPath();
+      for (const b of group) {
+        // moveTo repositions the path's current point without drawing a
+        // line, so each arc() below starts its own independent subpath
+        // instead of being connected to the previous circle.
+        g.moveTo(b.x + GAME_CONFIG.bisonRadius, b.y);
+        g.arc(b.x, b.y, GAME_CONFIG.bisonRadius, 0, Math.PI * 2);
+      }
+      g.fillPath();
+    }
   }
 
   private drawHeadingMarker(): void {

@@ -22,7 +22,7 @@ const WILD_GROUPS: WildGroup[] = [
   { x: 320, y: -420, count: 2 },
 ];
 
-export function spawnWildBison(scene: Phaser.Scene): WildBison[] {
+export function spawnWildBison(): WildBison[] {
   const wildBison: WildBison[] = [];
 
   for (const group of WILD_GROUPS) {
@@ -31,7 +31,7 @@ export function spawnWildBison(scene: Phaser.Scene): WildBison[] {
       const radius = Phaser.Math.FloatBetween(0, GAME_CONFIG.separationRadius * 1.5);
       const x = group.x + Math.cos(angle) * radius;
       const y = group.y + Math.sin(angle) * radius;
-      wildBison.push(new WildBison(scene, x, y));
+      wildBison.push(new WildBison(x, y));
     }
   }
 
