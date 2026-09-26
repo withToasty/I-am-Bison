@@ -136,6 +136,17 @@ export const GAME_CONFIG = {
   collisionShakeDuration: 130,
   collisionShakeIntensity: 0.018,
 
+  // Encounter / route generation (v0.2 M2, spec section 5-13): the fixed,
+  // one-time obstacle layout is replaced by a continuous stream of
+  // hand-authored chunks. Course progress is tracked separately from the
+  // displayed DISTANCE (Math.max(0, spawnY - leaderY)) and drives chunk
+  // spacing, difficulty-band eligibility, and cleanup.
+  encounterChunkSpacing: 550, // px between consecutive chunk anchors along -Y
+  encounterSpawnAhead: 1300, // keep the frontier at least this far ahead of the player
+  encounterCleanupBehind: 900, // px past a chunk's far edge before it's torn down
+  encounterInitialSafeDistance: 260, // empty runway before the first encounter
+  encounterMaxCenterOffset: 150, // +/- random X offset applied to each chunk's anchor
+
   // Simulation
   maxDeltaMs: 33, // clamp per-frame dt (~30fps floor) to avoid physics spikes on hitches
 

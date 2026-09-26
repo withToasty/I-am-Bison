@@ -23,4 +23,9 @@ export class River {
   contains(px: number, py: number): boolean {
     return Math.abs(px - this.x) <= this.width / 2 && Math.abs(py - this.y) <= this.height / 2;
   }
+
+  // Used by EncounterDirector once this river's chunk is behind the player.
+  destroy(): void {
+    this.gfx.destroy();
+  }
 }

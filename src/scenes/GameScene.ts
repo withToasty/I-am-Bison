@@ -7,7 +7,7 @@ import { Rock } from "../obstacles/Rock";
 import { Fence } from "../obstacles/Fence";
 import { River } from "../obstacles/River";
 import { SteeringInput } from "../input/SteeringInput";
-import { spawnFences, spawnRivers, spawnRocks, spawnWildBison } from "../systems/SpawnSystem";
+import { EncounterDirector } from "../systems/EncounterDirector";
 import { HUD } from "../ui/HUD";
 import type { GameOverData } from "./GameOverScene";
 
@@ -40,6 +40,7 @@ export class GameScene extends Phaser.Scene {
   private maxHerdSize = 0;
   private spawnX = 0;
   private spawnY = 0;
+  private encounterDirector!: EncounterDirector;
 
   // v0.2 M1 feel pass
   private dustEmitter!: Phaser.GameObjects.Particles.ParticleEmitter;
@@ -69,21 +70,26 @@ export class GameScene extends Phaser.Scene {
       .setScrollFactor(0)
       .setDepth(-10);
 
-    // Rivers are drawn on the ground first so bison, rocks, and fences
-    // render on top of them.
-    this.rivers = spawnRivers(this);
+    // Rivers, rocks, fences, and wild bison are no longer a one-time fixed
+    // layout - EncounterDirector below spawns them continuously as chunks.
+    // Start every array empty; rivers are still positioned early in the
+    // display list (via an explicit depth in EncounterDirector) so bison,
+    // rocks, and fences render on top of them regardless of spawn order.
+    this.rivers = [];
+    this.rocks = [];
+    this.fences = [];
+    this.wildBison = [];
 
     // Every bison (leader, followers, wild, stranded) is drawn here as one
     // batched fill per color, not as individual Arc GameObjects - see
-    // drawBison(). Positioned between rivers and rocks in the display list
-    // so the layering matches the old per-bison-object order (rocks/fences
-    // still render on top).
+    // drawBison(). Created once, up front, so anything spawned later is
+    // guaranteed to render on top of it (matching the old per-bison-object
+    // layering, where rocks/fences render above bison).
     this.bisonGraphics = this.add.graphics();
 
     this.herd = new Herd(this.herdSize, 0, 0);
-    this.wildBison = spawnWildBison();
-    this.rocks = spawnRocks(this);
-    this.fences = spawnFences(this);
+    this.encounterDirector = new EncounterDirector(this, this.rocks, this.fences, this.rivers, this.wildBison);
+    this.encounterDirector.primeInitialEncounters();
     this.totalRecruited = 0;
     this.totalDestroyed = 0;
     this.maxDistanceFromSpawn = 0;
@@ -180,6 +186,8 @@ export class GameScene extends Phaser.Scene {
     const recruitedThisFrame = this.herd.recruit(this.wildBison) + this.herd.recruit(this.herd.strandedBison);
     this.totalRecruited += recruitedThisFrame;
     if (recruitedThisFrame > 0) this.showRecruitFeedback(recruitedThisFrame);
+
+    this.encounterDirector.update(this.herd.leader.y);
 
     this.updateCameraZoom();
     this.updateCameraTarget();
@@ -329,8 +337,14 @@ export class GameScene extends Phaser.Scene {
 
   private updateDevText(): void {
     const turnPercent = Math.round((this.herd.turnRate / GAME_CONFIG.baseTurnRate) * 100);
+    // Course progress (spec section 4, distinct from the displayed
+    // DISTANCE): forward travel only, used by EncounterDirector for
+    // difficulty banding and cleanup - shown here for tuning, not gameplay.
+    const courseProgress = Math.round(Math.max(0, this.spawnY - this.herd.leader.y));
     this.devText.setText(
-      `HERD ${this.herd.size}  MAX HERD ${this.maxHerdSize}  TURN RATE ${turnPercent}%  LOST ${this.herd.totalLost}  RECRUITED ${this.totalRecruited}  WILD LEFT ${this.wildBison.length}  DESTROYED ${this.totalDestroyed}\n1-5: test herd sizes (${TEST_HERD_SIZES.join("/")})`,
+      `HERD ${this.herd.size}  MAX HERD ${this.maxHerdSize}  TURN RATE ${turnPercent}%  LOST ${this.herd.totalLost}  RECRUITED ${this.totalRecruited}  WILD LEFT ${this.wildBison.length}  DESTROYED ${this.totalDestroyed}\n` +
+        `PROGRESS ${courseProgress}  ENCOUNTERS ${this.encounterDirector.encounterIndex}  ACTIVE ${this.encounterDirector.activeCount}  LAST ${this.encounterDirector.lastTemplateId}\n` +
+        `1-5: test herd sizes (${TEST_HERD_SIZES.join("/")})`,
     );
   }
 

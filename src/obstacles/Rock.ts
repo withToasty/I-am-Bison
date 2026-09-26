@@ -16,4 +16,9 @@ export class Rock {
     this.y = y;
     this.gfx = scene.add.circle(x, y, this.radius, GAME_CONFIG.rockColor);
   }
+
+  // Used by EncounterDirector once this rock's chunk is behind the player.
+  destroy(): void {
+    this.gfx.destroy();
+  }
 }

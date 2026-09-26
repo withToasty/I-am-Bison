@@ -34,4 +34,11 @@ export class Fence {
     this.broken = true;
     this.gfx.destroy();
   }
+
+  // Used by EncounterDirector once this fence's chunk is behind the player.
+  // A broken fence has already destroyed its own gfx via break() above, so
+  // this must not try to destroy it again.
+  destroy(): void {
+    if (!this.broken) this.gfx.destroy();
+  }
 }
