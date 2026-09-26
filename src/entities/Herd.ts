@@ -9,6 +9,10 @@ import { Bison } from "./Bison";
 // settles instead of snapping instantly onto a new heading.
 export class Herd {
   bison: Bison[] = [];
+  // Bison that left the active herd stay visible, motionless, where they
+  // dropped out (spec: "may simply slow down, remain behind..."). They no
+  // longer take part in any herd behavior or get moved.
+  readonly strandedBison: Bison[] = [];
   heading = -Math.PI / 2; // start moving "up" the screen
   centerX: number;
   centerY: number;
@@ -113,7 +117,9 @@ export class Herd {
 
     if (stragglers.length > 0) {
       for (const lost of stragglers) {
-        lost.gfx.destroy();
+        lost.vx = 0;
+        lost.vy = 0;
+        this.strandedBison.push(lost);
       }
       const lostSet = new Set(stragglers);
       this.bison = this.bison.filter((b) => !lostSet.has(b));
