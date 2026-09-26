@@ -33,10 +33,10 @@ export class GameScene extends Phaser.Scene {
   private totalRecruited = 0;
   private totalDestroyed = 0;
   private hud!: HUD;
-  private distanceTraveled = 0;
+  private maxDistanceFromSpawn = 0;
   private maxHerdSize = 0;
-  private prevCenterX = 0;
-  private prevCenterY = 0;
+  private spawnX = 0;
+  private spawnY = 0;
 
   constructor() {
     super("GameScene");
@@ -64,10 +64,10 @@ export class GameScene extends Phaser.Scene {
     this.fences = spawnFences(this);
     this.totalRecruited = 0;
     this.totalDestroyed = 0;
-    this.distanceTraveled = 0;
+    this.maxDistanceFromSpawn = 0;
     this.maxHerdSize = this.herd.size;
-    this.prevCenterX = this.herd.centerX;
-    this.prevCenterY = this.herd.centerY;
+    this.spawnX = this.herd.centerX;
+    this.spawnY = this.herd.centerY;
     this.steering = new SteeringInput(this);
 
     this.headingMarker = this.add.graphics();
@@ -103,15 +103,12 @@ export class GameScene extends Phaser.Scene {
     this.totalRecruited += this.herd.recruit(this.wildBison);
     this.totalRecruited += this.herd.recruit(this.herd.strandedBison);
 
-    // Score (spec sections 15-16): distance is the herd center's total path
-    // length traveled, not straight-line displacement, so it only ever
-    // grows - matching "how far the run traveled".
-    this.distanceTraveled += Math.hypot(
-      this.herd.centerX - this.prevCenterX,
-      this.herd.centerY - this.prevCenterY,
-    );
-    this.prevCenterX = this.herd.centerX;
-    this.prevCenterY = this.herd.centerY;
+    // Score (spec sections 15-16): distance is straight-line displacement
+    // from spawn, not total path length - looping in place to rack up an
+    // odometer reading shouldn't count as "how far the run traveled". Track
+    // the farthest point ever reached so backing up doesn't lower the score.
+    const distanceFromSpawn = Math.hypot(this.herd.centerX - this.spawnX, this.herd.centerY - this.spawnY);
+    this.maxDistanceFromSpawn = Math.max(this.maxDistanceFromSpawn, distanceFromSpawn);
     this.maxHerdSize = Math.max(this.maxHerdSize, this.herd.size);
 
     this.cameraTarget.setPosition(this.herd.centerX, this.herd.centerY);
@@ -119,7 +116,7 @@ export class GameScene extends Phaser.Scene {
     this.background.tilePositionY = this.herd.centerY;
 
     this.drawHeadingMarker();
-    this.hud.update(this.herd.size, this.distanceTraveled / GAME_CONFIG.pixelsPerMeter);
+    this.hud.update(this.herd.size, this.maxDistanceFromSpawn / GAME_CONFIG.pixelsPerMeter);
     this.updateDevText();
   }
 
