@@ -56,6 +56,16 @@ export const GAME_CONFIG = {
   fenceBreakHerdSize: 20,
   fenceColor: 0xb08968,
 
+  // Rivers (spec section 12.3): don't block movement outright - anyone
+  // currently inside one moves slower and is pulled back to the herd center
+  // more weakly, so the formation visibly loosens while crossing rather than
+  // holding tight. A skilled player should be able to get most of the herd
+  // across intact.
+  riverSpeedMultiplier: 0.65,
+  riverCohesionMultiplier: 0.4,
+  riverColor: 0x2f6690,
+  riverAlpha: 0.55,
+
   // Camera
   cameraLerp: 0.08,
 

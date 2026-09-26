@@ -4,8 +4,9 @@ import { Herd } from "../entities/Herd";
 import { WildBison } from "../entities/WildBison";
 import { Rock } from "../obstacles/Rock";
 import { Fence } from "../obstacles/Fence";
+import { River } from "../obstacles/River";
 import { SteeringInput } from "../input/SteeringInput";
-import { spawnFences, spawnRocks, spawnWildBison } from "../systems/SpawnSystem";
+import { spawnFences, spawnRivers, spawnRocks, spawnWildBison } from "../systems/SpawnSystem";
 
 // Herd sizes bound to the 1-5 keys so 10-vs-50 (and beyond) can be felt
 // back-to-back without recruitment/loss systems, which arrive in later
@@ -27,6 +28,7 @@ export class GameScene extends Phaser.Scene {
   private wildBison: WildBison[] = [];
   private rocks: Rock[] = [];
   private fences: Fence[] = [];
+  private rivers: River[] = [];
   private totalRecruited = 0;
   private totalDestroyed = 0;
 
@@ -45,6 +47,10 @@ export class GameScene extends Phaser.Scene {
       .tileSprite(0, 0, this.scale.width, this.scale.height, "ground")
       .setOrigin(0, 0)
       .setScrollFactor(0);
+
+    // Rivers are drawn on the ground first so bison, rocks, and fences
+    // render on top of them.
+    this.rivers = spawnRivers(this);
 
     this.herd = new Herd(this, this.herdSize, 0, 0);
     this.wildBison = spawnWildBison(this);
@@ -75,7 +81,7 @@ export class GameScene extends Phaser.Scene {
     // single oversized physics step that looks like a stutter/pop.
     const dt = Math.min(delta, GAME_CONFIG.maxDeltaMs) / 1000;
 
-    this.herd.update(dt, this.steering.direction);
+    this.herd.update(dt, this.steering.direction, this.rivers);
     this.herd.handleRockCollisions(this.rocks);
     this.totalDestroyed += this.herd.handleFenceCollisions(this.fences);
     this.totalRecruited += this.herd.recruit(this.wildBison);

@@ -3,6 +3,7 @@ import { GAME_CONFIG } from "../config/gameConfig";
 import { Bison } from "./Bison";
 import { Rock } from "../obstacles/Rock";
 import { Fence } from "../obstacles/Fence";
+import { River } from "../obstacles/River";
 
 // Lightweight Boids-inspired herd: cohesion pulls bison toward the herd
 // center, separation keeps them from overlapping, and alignment blends each
@@ -51,13 +52,11 @@ export class Herd {
     return GAME_CONFIG.baseTurnRate / (1 + this.bison.length * GAME_CONFIG.herdTurnPenalty);
   }
 
-  update(dt: number, steerDirection: number): void {
+  update(dt: number, steerDirection: number, rivers: River[] = []): void {
     this.heading += steerDirection * this.turnRate * dt;
 
     const headingDirX = Math.cos(this.heading);
     const headingDirY = Math.sin(this.heading);
-    const targetVx = headingDirX * GAME_CONFIG.baseSpeed;
-    const targetVy = headingDirY * GAME_CONFIG.baseSpeed;
     const baseAlignmentBlend = Math.min(1, GAME_CONFIG.alignmentForce * dt);
     const stragglers: Bison[] = [];
 
@@ -65,12 +64,20 @@ export class Herd {
       let ax = 0;
       let ay = 0;
 
+      // A river doesn't block anyone - it just slows and loosens whoever is
+      // currently standing in it, per-bison, for as long as they're in it.
+      const inRiver = rivers.some((r) => r.contains(b.x, b.y));
+      const cohesionMul = inRiver ? GAME_CONFIG.riverCohesionMultiplier : 1;
+      const speedMul = inRiver ? GAME_CONFIG.riverSpeedMultiplier : 1;
+      const targetVx = headingDirX * GAME_CONFIG.baseSpeed * speedMul;
+      const targetVy = headingDirY * GAME_CONFIG.baseSpeed * speedMul;
+
       // Cohesion: spring pull toward the herd center.
       const toCenterX = this.centerX - b.x;
       const toCenterY = this.centerY - b.y;
       const distToCenter = Math.hypot(toCenterX, toCenterY);
-      ax += toCenterX * GAME_CONFIG.cohesionForce;
-      ay += toCenterY * GAME_CONFIG.cohesionForce;
+      ax += toCenterX * GAME_CONFIG.cohesionForce * cohesionMul;
+      ay += toCenterY * GAME_CONFIG.cohesionForce * cohesionMul;
 
       // Separation: push away from bison that are too close.
       for (const other of this.bison) {

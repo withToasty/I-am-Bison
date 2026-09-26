@@ -3,6 +3,7 @@ import { GAME_CONFIG } from "../config/gameConfig";
 import { WildBison } from "../entities/WildBison";
 import { Rock } from "../obstacles/Rock";
 import { Fence } from "../obstacles/Fence";
+import { River } from "../obstacles/River";
 
 interface WildGroup {
   x: number;
@@ -62,4 +63,16 @@ const FENCE_SPANS: { x: number; y: number; width: number }[] = [
 
 export function spawnFences(scene: Phaser.Scene): Fence[] {
   return FENCE_SPANS.map(({ x, y, width }) => new Fence(scene, x, y, width));
+}
+
+// Placeholder placement for v0.1 (spec section 12.3): one wide river band
+// further out than the fences. Wide enough that going around is impractical,
+// so crossing it - and feeling the herd loosen up while doing so - is the
+// intended challenge.
+const RIVER_SPANS: { x: number; y: number; width: number; height: number }[] = [
+  { x: 60, y: -830, width: 520, height: 90 },
+];
+
+export function spawnRivers(scene: Phaser.Scene): River[] {
+  return RIVER_SPANS.map(({ x, y, width, height }) => new River(scene, x, y, width, height));
 }
