@@ -183,8 +183,26 @@ export class Herd {
           const ny = dy / dist;
           b.x += nx * (minDist - dist);
           b.y += ny * (minDist - dist);
+
+          // Cancel whatever velocity was carrying it into the rock, then add
+          // a modest outward bump - not stacked on top of its full cruising
+          // speed, which is what made this read as a launch rather than a
+          // bump.
+          const inward = -(b.vx * nx + b.vy * ny);
+          if (inward > 0) {
+            b.vx += nx * inward;
+            b.vy += ny * inward;
+          }
           b.vx += nx * GAME_CONFIG.rockKnockback;
           b.vy += ny * GAME_CONFIG.rockKnockback;
+
+          const speed = Math.hypot(b.vx, b.vy);
+          if (speed > GAME_CONFIG.maxIndividualSpeed) {
+            const scale = GAME_CONFIG.maxIndividualSpeed / speed;
+            b.vx *= scale;
+            b.vy *= scale;
+          }
+
           b.syncGraphics();
         }
       }

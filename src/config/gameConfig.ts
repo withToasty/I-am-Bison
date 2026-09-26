@@ -42,7 +42,7 @@ export const GAME_CONFIG = {
   // hard enough (or already near the edge of the herd) it can push a bison
   // past lostRadius and cause a real separation, same as a sharp turn.
   rockRadius: 26,
-  rockKnockback: 220, // px/s velocity impulse applied along the away-from-rock normal
+  rockKnockback: 60, // px/s outward bump after canceling the inward velocity - a nudge, not a launch
   rockColor: 0x8c8c8c,
 
   // Camera
