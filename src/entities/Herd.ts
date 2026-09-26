@@ -2,6 +2,7 @@ import Phaser from "phaser";
 import { GAME_CONFIG } from "../config/gameConfig";
 import { Bison } from "./Bison";
 import { Rock } from "../obstacles/Rock";
+import { Fence } from "../obstacles/Fence";
 
 // Lightweight Boids-inspired herd: cohesion pulls bison toward the herd
 // center, separation keeps them from overlapping, and alignment blends each
@@ -174,39 +175,78 @@ export class Herd {
   handleRockCollisions(rocks: Rock[]): void {
     for (const b of this.bison) {
       for (const rock of rocks) {
-        const dx = b.x - rock.x;
-        const dy = b.y - rock.y;
-        const dist = Math.hypot(dx, dy);
+        const dist = Math.hypot(b.x - rock.x, b.y - rock.y);
         const minDist = rock.radius + GAME_CONFIG.bisonRadius;
         if (dist > 0 && dist < minDist) {
-          const nx = dx / dist;
-          const ny = dy / dist;
-          b.x += nx * (minDist - dist);
-          b.y += ny * (minDist - dist);
-
-          // Cancel whatever velocity was carrying it into the rock, then add
-          // a modest outward bump - not stacked on top of its full cruising
-          // speed, which is what made this read as a launch rather than a
-          // bump.
-          const inward = -(b.vx * nx + b.vy * ny);
-          if (inward > 0) {
-            b.vx += nx * inward;
-            b.vy += ny * inward;
-          }
-          b.vx += nx * GAME_CONFIG.rockKnockback;
-          b.vy += ny * GAME_CONFIG.rockKnockback;
-
-          const speed = Math.hypot(b.vx, b.vy);
-          if (speed > GAME_CONFIG.maxIndividualSpeed) {
-            const scale = GAME_CONFIG.maxIndividualSpeed / speed;
-            b.vx *= scale;
-            b.vy *= scale;
-          }
-
-          b.syncGraphics();
+          this.bounceOff(b, rock.x, rock.y, minDist);
         }
       }
     }
+  }
+
+  // Fences (spec 12.2): whether one breaks depends entirely on the herd's
+  // size the moment anyone touches it. Large enough, it breaks and everyone
+  // just keeps moving; too small, it's a solid wall - same bounce as a rock,
+  // with the same chance of disrupting/separating whoever hit it. Returns
+  // how many fences broke this call.
+  handleFenceCollisions(fences: Fence[]): number {
+    let brokenCount = 0;
+
+    for (const fence of fences) {
+      if (fence.broken) continue;
+
+      const canBreakThrough = this.bison.length >= GAME_CONFIG.fenceBreakHerdSize;
+
+      for (const b of this.bison) {
+        const { x: cx, y: cy } = fence.closestPoint(b.x, b.y);
+        const dist = Math.hypot(b.x - cx, b.y - cy);
+        if (dist >= GAME_CONFIG.bisonRadius) continue;
+
+        if (canBreakThrough) {
+          fence.break();
+          brokenCount++;
+          break; // no point checking the rest against a now-broken fence
+        }
+
+        this.bounceOff(b, cx, cy, GAME_CONFIG.bisonRadius);
+      }
+    }
+
+    return brokenCount;
+  }
+
+  // Shared bounce response for solid obstacles (rocks, unbroken fences):
+  // shove the bison clear along the normal from `originX,originY`, cancel
+  // the velocity that was carrying it inward, and add a modest outward bump
+  // rather than stacking on top of its existing speed (which read as being
+  // launched rather than bumped).
+  private bounceOff(b: Bison, originX: number, originY: number, minDist: number): void {
+    const dx = b.x - originX;
+    const dy = b.y - originY;
+    const dist = Math.hypot(dx, dy);
+    if (dist === 0) return;
+
+    const nx = dx / dist;
+    const ny = dy / dist;
+    b.x += nx * (minDist - dist);
+    b.y += ny * (minDist - dist);
+
+    const inward = -(b.vx * nx + b.vy * ny);
+    if (inward > 0) {
+      b.vx += nx * inward;
+      b.vy += ny * inward;
+    }
+    b.vx += nx * GAME_CONFIG.obstacleKnockback;
+    b.vy += ny * GAME_CONFIG.obstacleKnockback;
+
+    const speed = Math.hypot(b.vx, b.vy);
+    if (speed > GAME_CONFIG.maxIndividualSpeed) {
+      const scale = GAME_CONFIG.maxIndividualSpeed / speed;
+      b.vx *= scale;
+      b.vy *= scale;
+    }
+
+    b.syncGraphics();
   }
 
   private updateCenter(): void {

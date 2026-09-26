@@ -3,8 +3,9 @@ import { GAME_CONFIG } from "../config/gameConfig";
 import { Herd } from "../entities/Herd";
 import { WildBison } from "../entities/WildBison";
 import { Rock } from "../obstacles/Rock";
+import { Fence } from "../obstacles/Fence";
 import { SteeringInput } from "../input/SteeringInput";
-import { spawnRocks, spawnWildBison } from "../systems/SpawnSystem";
+import { spawnFences, spawnRocks, spawnWildBison } from "../systems/SpawnSystem";
 
 // Herd sizes bound to the 1-5 keys so 10-vs-50 (and beyond) can be felt
 // back-to-back without recruitment/loss systems, which arrive in later
@@ -25,7 +26,9 @@ export class GameScene extends Phaser.Scene {
   private herdSize = GAME_CONFIG.herdSize;
   private wildBison: WildBison[] = [];
   private rocks: Rock[] = [];
+  private fences: Fence[] = [];
   private totalRecruited = 0;
+  private totalDestroyed = 0;
 
   constructor() {
     super("GameScene");
@@ -46,7 +49,9 @@ export class GameScene extends Phaser.Scene {
     this.herd = new Herd(this, this.herdSize, 0, 0);
     this.wildBison = spawnWildBison(this);
     this.rocks = spawnRocks(this);
+    this.fences = spawnFences(this);
     this.totalRecruited = 0;
+    this.totalDestroyed = 0;
     this.steering = new SteeringInput(this);
 
     this.headingMarker = this.add.graphics();
@@ -72,6 +77,7 @@ export class GameScene extends Phaser.Scene {
 
     this.herd.update(dt, this.steering.direction);
     this.herd.handleRockCollisions(this.rocks);
+    this.totalDestroyed += this.herd.handleFenceCollisions(this.fences);
     this.totalRecruited += this.herd.recruit(this.wildBison);
     this.totalRecruited += this.herd.recruit(this.herd.strandedBison);
 
@@ -86,7 +92,7 @@ export class GameScene extends Phaser.Scene {
   private updateDevText(): void {
     const turnPercent = Math.round((this.herd.turnRate / GAME_CONFIG.baseTurnRate) * 100);
     this.devText.setText(
-      `HERD ${this.herd.size}  TURN RATE ${turnPercent}%  LOST ${this.herd.totalLost}  RECRUITED ${this.totalRecruited}  WILD LEFT ${this.wildBison.length}\n1-5: test herd sizes (${TEST_HERD_SIZES.join("/")})`,
+      `HERD ${this.herd.size}  TURN RATE ${turnPercent}%  LOST ${this.herd.totalLost}  RECRUITED ${this.totalRecruited}  WILD LEFT ${this.wildBison.length}  DESTROYED ${this.totalDestroyed}\n1-5: test herd sizes (${TEST_HERD_SIZES.join("/")})`,
     );
   }
 

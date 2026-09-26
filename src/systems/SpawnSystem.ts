@@ -2,6 +2,7 @@ import Phaser from "phaser";
 import { GAME_CONFIG } from "../config/gameConfig";
 import { WildBison } from "../entities/WildBison";
 import { Rock } from "../obstacles/Rock";
+import { Fence } from "../obstacles/Fence";
 
 interface WildGroup {
   x: number;
@@ -49,4 +50,16 @@ const ROCK_POSITIONS: { x: number; y: number }[] = [
 
 export function spawnRocks(scene: Phaser.Scene): Rock[] {
   return ROCK_POSITIONS.map(({ x, y }) => new Rock(scene, x, y));
+}
+
+// Placeholder placement for v0.1 (spec section 12.2): a couple of fence
+// spans further out than the rocks, so the player has already had a chance
+// to grow the herd a little before meeting a size-gated obstacle.
+const FENCE_SPANS: { x: number; y: number; width: number }[] = [
+  { x: -30, y: -560, width: 150 },
+  { x: 220, y: -650, width: 170 },
+];
+
+export function spawnFences(scene: Phaser.Scene): Fence[] {
+  return FENCE_SPANS.map(({ x, y, width }) => new Fence(scene, x, y, width));
 }

@@ -37,13 +37,24 @@ export const GAME_CONFIG = {
   joinRadius: 100,
   joinSettleTime: 1.0, // seconds a newly joined bison is excluded from the herd centroid
 
-  // Rocks (spec section 12.1): unbreakable obstacles. A colliding bison is
-  // shoved clear and knocked outward - generally a recoverable bump, but
-  // hard enough (or already near the edge of the herd) it can push a bison
-  // past lostRadius and cause a real separation, same as a sharp turn.
+  // Shared bounce response for any solid obstacle (rocks, unbroken fences):
+  // a collision shoves the bison clear and adds this modest outward bump
+  // after canceling the velocity that was carrying it in - a nudge, not a
+  // launch. Hard enough (or already near the edge of the herd) it can still
+  // push a bison past lostRadius and cause a real separation.
+  obstacleKnockback: 60,
+
+  // Rocks (spec section 12.1): unbreakable obstacles.
   rockRadius: 26,
-  rockKnockback: 60, // px/s outward bump after canceling the inward velocity - a nudge, not a launch
   rockColor: 0x8c8c8c,
+
+  // Fences (spec section 12.2): whether one breaks depends entirely on the
+  // herd's size at the moment it's touched. A large enough herd breaks
+  // through and keeps moving; a smaller one bounces off it exactly like a
+  // rock, with the same chance of disruption/separation.
+  fenceThickness: 12,
+  fenceBreakHerdSize: 20,
+  fenceColor: 0xb08968,
 
   // Camera
   cameraLerp: 0.08,
