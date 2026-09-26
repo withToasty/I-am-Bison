@@ -8,6 +8,7 @@ import { Fence } from "../obstacles/Fence";
 import { River } from "../obstacles/River";
 import { SteeringInput } from "../input/SteeringInput";
 import { WorldGrid } from "../systems/WorldGrid";
+import { BIOMES, biomeWeightsAt } from "../systems/Biomes";
 import { HUD } from "../ui/HUD";
 import { lighten, darken } from "../utils/color";
 import type { GameOverData } from "./GameOverScene";
@@ -25,6 +26,12 @@ export class GameScene extends Phaser.Scene {
   private herd!: Herd;
   private steering!: SteeringInput;
   private background!: Phaser.GameObjects.TileSprite;
+  // Second ground layer, stacked on top of `background` and faded in/out
+  // by biome blend weight (see updateGroundBlend) so a boundary crossfades
+  // instead of snapping between two flat colors.
+  private backgroundBlend!: Phaser.GameObjects.TileSprite;
+  private groundBiomeId = "";
+  private groundBlendBiomeId = "";
   private cameraTarget!: Phaser.GameObjects.Zone;
   private headingMarker!: Phaser.GameObjects.Graphics;
   private bisonGraphics!: Phaser.GameObjects.Graphics;
@@ -61,16 +68,26 @@ export class GameScene extends Phaser.Scene {
   }
 
   create(): void {
-    this.generateGroundTexture();
+    this.generateGroundTextures();
     this.generateDustTexture();
     this.generateDebrisTexture();
     this.generateRiverTexture();
 
+    // Spawn is at the center of the grassland ring, so both layers start
+    // on that texture; updateGroundBlend() takes over from the first frame.
     this.background = this.add
-      .tileSprite(0, 0, this.scale.width, this.scale.height, "ground")
+      .tileSprite(0, 0, this.scale.width, this.scale.height, "ground-grassland")
       .setOrigin(0, 0)
       .setScrollFactor(0)
       .setDepth(-10);
+    this.groundBiomeId = "grassland";
+
+    this.backgroundBlend = this.add
+      .tileSprite(0, 0, this.scale.width, this.scale.height, "ground-grassland")
+      .setOrigin(0, 0)
+      .setScrollFactor(0)
+      .setDepth(-9)
+      .setAlpha(0);
 
     // Rivers, rocks, fences, and wild bison are no longer a one-time fixed
     // layout - WorldGrid below spawns them continuously by cell. Start
@@ -193,6 +210,7 @@ export class GameScene extends Phaser.Scene {
 
     this.updateCameraZoom();
     this.updateCameraTarget();
+    this.updateGroundBlend();
     this.updateDust(dt);
     for (const river of this.rivers) river.update(dt);
 
@@ -233,6 +251,38 @@ export class GameScene extends Phaser.Scene {
     this.cameraTarget.setPosition(focusX, focusY);
     this.background.tilePositionX = focusX;
     this.background.tilePositionY = focusY;
+    this.backgroundBlend.tilePositionX = focusX;
+    this.backgroundBlend.tilePositionY = focusY;
+  }
+
+  // Biome ground crossfade (v0.3 M-G2, spec section 3.1/9): bands are tuned
+  // so at most two biomes ever have nonzero weight at once (see Biomes.ts),
+  // so a simple two-layer composite is the exact right blend - draw the
+  // dominant biome's texture fully opaque as the base, then the secondary
+  // biome's texture on top at alpha = its own blend weight. Since the two
+  // weights sum to 1, that Porter-Duff "over" composite produces exactly
+  // dominant*(1-wSecondary) + secondary*wSecondary, i.e. a true linear
+  // blend - not an approximation.
+  private updateGroundBlend(): void {
+    const radius = Math.hypot(this.herd.leader.x, this.herd.leader.y);
+    const sorted = [...biomeWeightsAt(radius).entries()].sort((a, b) => b[1] - a[1]);
+    const [primaryId] = sorted[0];
+    const secondary = sorted[1];
+
+    if (primaryId !== this.groundBiomeId) {
+      this.background.setTexture(`ground-${primaryId}`);
+      this.groundBiomeId = primaryId;
+    }
+
+    if (secondary && secondary[1] > 0.001) {
+      if (secondary[0] !== this.groundBlendBiomeId) {
+        this.backgroundBlend.setTexture(`ground-${secondary[0]}`);
+        this.groundBlendBiomeId = secondary[0];
+      }
+      this.backgroundBlend.setAlpha(secondary[1]);
+    } else {
+      this.backgroundBlend.setAlpha(0);
+    }
   }
 
   // Ground/dust feedback (v0.2 M1, spec section 6): rate scales smoothly
@@ -341,9 +391,15 @@ export class GameScene extends Phaser.Scene {
   private updateDevText(): void {
     const turnPercent = Math.round((this.herd.turnRate / GAME_CONFIG.baseTurnRate) * 100);
     const cell = this.worldGrid.lastCell;
+    const radius = Math.round(Math.hypot(this.herd.leader.x, this.herd.leader.y));
+    const biomeMix = [...biomeWeightsAt(radius).entries()]
+      .sort((a, b) => b[1] - a[1])
+      .map(([id, w]) => `${id} ${Math.round(w * 100)}%`)
+      .join(" / ");
     this.devText.setText(
       `HERD ${this.herd.size}  MAX HERD ${this.maxHerdSize}  TURN RATE ${turnPercent}%  LOST ${this.herd.totalLost}  RECRUITED ${this.totalRecruited}  WILD LEFT ${this.wildBison.length}  DESTROYED ${this.totalDestroyed}\n` +
         `CELLS LOADED ${this.worldGrid.loadedCount}  LAST CELL (${cell.x},${cell.y})  LAST TEMPLATE ${this.worldGrid.lastTemplate}\n` +
+        `RADIUS ${radius}  BIOME ${biomeMix}\n` +
         `1-5: test herd sizes (${TEST_HERD_SIZES.join("/")})`,
     );
   }
@@ -431,36 +487,44 @@ export class GameScene extends Phaser.Scene {
     marker.lineBetween(this.herd.centerX, this.herd.centerY, endX, endY);
   }
 
-  private generateGroundTexture(): void {
-    if (this.textures.exists("ground")) return;
+  // One "ground-<biomeId>" texture per biome (v0.3 M-G2), so the two
+  // ground layers can crossfade between them - see updateGroundBlend().
+  private generateGroundTextures(): void {
+    for (const biome of BIOMES) {
+      const key = `ground-${biome.id}`;
+      if (this.textures.exists(key)) continue;
 
-    const size = GAME_CONFIG.backgroundTileSize;
-    const g = this.make.graphics({ x: 0, y: 0 }, false);
-    g.fillStyle(GAME_CONFIG.backgroundColor);
-    g.fillRect(0, 0, size, size);
+      const { backgroundColor, backgroundLineColor } = biome.groundTheme;
+      const size = GAME_CONFIG.backgroundTileSize;
+      const g = this.make.graphics({ x: 0, y: 0 }, false);
+      g.fillStyle(backgroundColor);
+      g.fillRect(0, 0, size, size);
 
-    // A couple of soft, randomly placed patches per tile break up the flat
-    // fill so the ground reads as grass rather than a solid color. Kept
-    // subtle (low alpha, no hard edges beyond the blob itself) since the
-    // tile repeats and an obvious motif would read as an artifact.
-    const patchColors = [lighten(GAME_CONFIG.backgroundColor, 0.05), darken(GAME_CONFIG.backgroundColor, 0.05)];
-    for (let i = 0; i < 3; i++) {
-      const color = patchColors[i % patchColors.length];
-      g.fillStyle(color, 0.35);
-      g.fillEllipse(
-        Phaser.Math.Between(0, size),
-        Phaser.Math.Between(0, size),
-        Phaser.Math.Between(size * 0.3, size * 0.55),
-        Phaser.Math.Between(size * 0.2, size * 0.4),
-      );
+      // A couple of soft, randomly placed patches per tile break up the
+      // flat fill so the ground reads as textured rather than a solid
+      // color. Kept subtle (low alpha, no hard edges beyond the blob
+      // itself) since the tile repeats and an obvious motif would read as
+      // an artifact.
+      const patchColors = [lighten(backgroundColor, 0.05), darken(backgroundColor, 0.05)];
+      for (let i = 0; i < 3; i++) {
+        const color = patchColors[i % patchColors.length];
+        g.fillStyle(color, 0.35);
+        g.fillEllipse(
+          Phaser.Math.Between(0, size),
+          Phaser.Math.Between(0, size),
+          Phaser.Math.Between(size * 0.3, size * 0.55),
+          Phaser.Math.Between(size * 0.2, size * 0.4),
+        );
+      }
+
+      // The grid line is kept mainly for scale/motion cues while moving,
+      // so it stays thin and low-contrast rather than reading as literal
+      // terrain.
+      g.lineStyle(1, backgroundLineColor, 0.35);
+      g.strokeRect(0, 0, size, size);
+      g.generateTexture(key, size, size);
+      g.destroy();
     }
-
-    // The grid line is kept mainly for scale/motion cues while moving, so
-    // it stays thin and low-contrast rather than reading as literal terrain.
-    g.lineStyle(1, GAME_CONFIG.backgroundLineColor, 0.35);
-    g.strokeRect(0, 0, size, size);
-    g.generateTexture("ground", size, size);
-    g.destroy();
   }
 
   // Ripple bands baked into a small tile; River scrolls its tilePosition to
@@ -509,6 +573,7 @@ export class GameScene extends Phaser.Scene {
 
   private handleResize(gameSize: Phaser.Structs.Size): void {
     this.background.setSize(gameSize.width, gameSize.height);
+    this.backgroundBlend.setSize(gameSize.width, gameSize.height);
     this.devText.setY(gameSize.height - 12);
   }
 }

@@ -4,7 +4,8 @@ import { WildBison } from "../entities/WildBison";
 import { Rock } from "../obstacles/Rock";
 import { Fence } from "../obstacles/Fence";
 import { River } from "../obstacles/River";
-import { ENCOUNTER_TEMPLATES, EncounterTemplate } from "./EncounterTemplates";
+import { EncounterTemplate } from "./EncounterTemplates";
+import { biomeWeightsAt, getBiome } from "./Biomes";
 import { hashCellSeed, SeededRandom } from "../utils/seededRandom";
 
 // One cell's currently-instantiated content, plus enough bookkeeping to
@@ -27,9 +28,10 @@ interface CellRuntime {
 // from an infinite 2D grid of cells instead: any cell's content is a pure
 // function of its coordinates plus a small run-scoped diff of what's
 // already been recruited or broken there, so revisiting a cell reproduces
-// it instead of finding it deleted. See the spec for the full model;
-// M-G1 is deliberately a single flat pool (no biome rings yet - that's
-// M-G2), just proving the load/unload-and-reproduce mechanics work.
+// it instead of finding it deleted. See the spec for the full model.
+// M-G2 adds biome rings (Biomes.ts): a cell's template pool is now drawn
+// from whichever biome(s) blend at its distance from spawn, instead of one
+// flat pool everywhere.
 export class WorldGrid {
   private loaded = new Map<string, CellRuntime>();
   // The world diff (spec section 7): recruited wild bison and broken
@@ -43,6 +45,7 @@ export class WorldGrid {
   private lastPlayerCellX: number | null = null;
   private lastPlayerCellY: number | null = null;
   private lastTemplateId = "";
+  private lastBiomeId = "";
   private lastCellX = 0;
   private lastCellY = 0;
 
@@ -62,6 +65,10 @@ export class WorldGrid {
 
   get lastTemplate(): string {
     return this.lastTemplateId;
+  }
+
+  get lastBiome(): string {
+    return this.lastBiomeId;
   }
 
   get lastCell(): { x: number; y: number } {
@@ -123,7 +130,8 @@ export class WorldGrid {
     const centerY = (cellY + 0.5) * cellSize;
 
     const rng = new SeededRandom(hashCellSeed(cellX, cellY, this.runSeed));
-    const template = this.pickTemplate(rng);
+    const radius = Math.hypot(centerX, centerY);
+    const template = this.pickTemplate(rng, radius);
     const rotation = rng.range(0, Math.PI * 2);
     const cos = Math.cos(rotation);
     const sin = Math.sin(rotation);
@@ -185,6 +193,7 @@ export class WorldGrid {
     this.lastCellX = cellX;
     this.lastCellY = cellY;
     this.lastTemplateId = template.id;
+    this.lastBiomeId = [...biomeWeightsAt(radius).entries()].sort((a, b) => b[1] - a[1])[0][0];
   }
 
   private unloadCell(key: string, cell: CellRuntime): void {
@@ -226,16 +235,26 @@ export class WorldGrid {
     this.loaded.delete(key);
   }
 
-  private pickTemplate(rng: SeededRandom): EncounterTemplate {
-    // M-G1: a single flat pool, uniformly available everywhere - biome
-    // eligibility (replacing minProgress/maxProgress with ring-based
-    // tagging) arrives in M-G2.
-    const totalWeight = ENCOUNTER_TEMPLATES.reduce((sum, t) => sum + t.weight, 0);
-    let roll = rng.range(0, totalWeight);
-    for (const t of ENCOUNTER_TEMPLATES) {
-      roll -= t.weight;
-      if (roll <= 0) return t;
+  // Combines every biome present at this radius into one weighted pool - a
+  // template's effective weight is its own authored weight times its
+  // biome's local blend weight, so a cell in a 70/30 grassland/forest
+  // blend draws from grassland templates 70% as often as it would deeper
+  // in pure grassland, not a hard cutoff at the ring boundary.
+  private pickTemplate(rng: SeededRandom, radius: number): EncounterTemplate {
+    const biomeWeights = biomeWeightsAt(radius);
+    const pool: { template: EncounterTemplate; weight: number }[] = [];
+    for (const [biomeId, biomeWeight] of biomeWeights) {
+      for (const template of getBiome(biomeId).templates) {
+        pool.push({ template, weight: template.weight * biomeWeight });
+      }
     }
-    return ENCOUNTER_TEMPLATES[ENCOUNTER_TEMPLATES.length - 1];
+
+    const totalWeight = pool.reduce((sum, p) => sum + p.weight, 0);
+    let roll = rng.range(0, totalWeight);
+    for (const p of pool) {
+      roll -= p.weight;
+      if (roll <= 0) return p.template;
+    }
+    return pool[pool.length - 1].template;
   }
 }
