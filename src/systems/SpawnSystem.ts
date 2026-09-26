@@ -42,7 +42,7 @@ export function spawnWildBison(scene: Phaser.Scene): WildBison[] {
 // sitting roughly between spawn and the wild bison groups above, so avoiding
 // one is a real choice on the way to a recruit rather than an afterthought.
 const ROCK_POSITIONS: { x: number; y: number }[] = [
-  { x: 40, y: -60 },
+  { x: 30, y: -190 },
   { x: -110, y: -160 },
   { x: 150, y: -150 },
   { x: -40, y: -300 },
