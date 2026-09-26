@@ -11,7 +11,20 @@ export const GAME_CONFIG = {
   // Forward movement / steering (shared by the whole herd)
   baseSpeed: 160, // px/s forward speed each bison is pulled toward
   baseTurnRate: 1.8, // rad/s the herd heading rotates at with a small/empty herd
-  herdTurnPenalty: 0.02, // effectiveTurnRate = baseTurnRate / (1 + herdSize * herdTurnPenalty)
+  // effectiveTurnRate = baseTurnRate / (1 + herdSize * herdTurnPenalty). At
+  // 0.03: size 50 -> 40% turn rate, size 100 -> 25% - a large herd should be
+  // noticeably harder to steer, not just nominally (spec's own "the bigger
+  // it becomes, the harder it becomes to control").
+  herdTurnPenalty: 0.03,
+
+  // World speed scaling (difficulty pass): forward speed climbs with
+  // distance from spawn, capped at maxSpeedMultiplier, so the world
+  // actually gets faster to react to the further the herd travels - not
+  // just visually harsher (per-biome ground/templates) but mechanically
+  // more demanding. 1 + radius*speedDistanceScale, e.g. radius 3000 (~mid
+  // canyon) -> 1.3x, radius 8000+ (deep in "beyond") -> the 1.8x cap.
+  speedDistanceScale: 0.0001,
+  maxSpeedMultiplier: 1.8,
 
   // Boids-inspired per-bison behavior
   cohesionForce: 0.6, // spring constant pulling a bison toward the herd center

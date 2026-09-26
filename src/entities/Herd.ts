@@ -64,16 +64,22 @@ export class Herd {
     return GAME_CONFIG.baseTurnRate / (1 + this.bison.length * GAME_CONFIG.herdTurnPenalty);
   }
 
-  update(dt: number, steerDirection: number, rivers: River[] = []): void {
+  // `worldSpeedMultiplier` is GameScene's distance-scaled speed factor
+  // (config: speedDistanceScale/maxSpeedMultiplier) - defaults to 1 so
+  // every other caller (and every existing test) is unaffected.
+  update(dt: number, steerDirection: number, rivers: River[] = [], worldSpeedMultiplier = 1): void {
     this.heading += steerDirection * this.turnRate * dt;
+
+    const effectiveSpeed = GAME_CONFIG.baseSpeed * worldSpeedMultiplier;
+    const effectiveMaxSpeed = GAME_CONFIG.maxIndividualSpeed * worldSpeedMultiplier;
 
     // The leader moves directly off player input - no boids blending, no
     // agility - so control always feels precise and immediate.
     const leader = this.leader;
     const leaderInRiver = rivers.some((r) => r.contains(leader.x, leader.y));
     const leaderSpeedMul = leaderInRiver ? GAME_CONFIG.riverSpeedMultiplier : 1;
-    leader.vx = Math.cos(this.heading) * GAME_CONFIG.baseSpeed * leaderSpeedMul;
-    leader.vy = Math.sin(this.heading) * GAME_CONFIG.baseSpeed * leaderSpeedMul;
+    leader.vx = Math.cos(this.heading) * effectiveSpeed * leaderSpeedMul;
+    leader.vy = Math.sin(this.heading) * effectiveSpeed * leaderSpeedMul;
     leader.x += leader.vx * dt;
     leader.y += leader.vy * dt;
 
@@ -99,8 +105,8 @@ export class Herd {
       const inRiver = rivers.some((r) => r.contains(b.x, b.y));
       const cohesionMul = inRiver ? GAME_CONFIG.riverCohesionMultiplier : 1;
       const speedMul = inRiver ? GAME_CONFIG.riverSpeedMultiplier : 1;
-      const targetVx = headingDirX * GAME_CONFIG.baseSpeed * speedMul;
-      const targetVy = headingDirY * GAME_CONFIG.baseSpeed * speedMul;
+      const targetVx = headingDirX * effectiveSpeed * speedMul;
+      const targetVy = headingDirY * effectiveSpeed * speedMul;
 
       // Cohesion: spring pull toward the leader.
       const toCenterX = this.centerX - b.x;
@@ -141,8 +147,8 @@ export class Herd {
       b.vy += (targetVy - b.vy) * alignmentBlend;
 
       const speed = Math.hypot(b.vx, b.vy);
-      if (speed > GAME_CONFIG.maxIndividualSpeed) {
-        const scale = GAME_CONFIG.maxIndividualSpeed / speed;
+      if (speed > effectiveMaxSpeed) {
+        const scale = effectiveMaxSpeed / speed;
         b.vx *= scale;
         b.vy *= scale;
       }

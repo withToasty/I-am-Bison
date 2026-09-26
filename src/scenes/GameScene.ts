@@ -168,7 +168,12 @@ export class GameScene extends Phaser.Scene {
     // single oversized physics step that looks like a stutter/pop.
     const dt = Math.min(delta, GAME_CONFIG.maxDeltaMs) / 1000;
 
-    this.herd.update(dt, this.steering.direction, this.rivers);
+    const radius = Math.hypot(this.herd.leader.x, this.herd.leader.y);
+    const speedMultiplier = Math.min(
+      GAME_CONFIG.maxSpeedMultiplier,
+      1 + radius * GAME_CONFIG.speedDistanceScale,
+    );
+    this.herd.update(dt, this.steering.direction, this.rivers, speedMultiplier);
     const rockResult = this.herd.handleRockCollisions(this.rocks);
     const fenceResult = this.herd.handleFenceCollisions(this.fences);
     this.totalDestroyed += fenceResult.brokenCount;
@@ -406,8 +411,11 @@ export class GameScene extends Phaser.Scene {
       .map(([id, w]) => `${id} ${Math.round(w * 100)}%`)
       .join(" / ");
     const river = isRiverZone(leader.x, leader.y, this.worldGrid.seed) ? " RIVER-ZONE" : "";
+    const speedPercent = Math.round(
+      Math.min(GAME_CONFIG.maxSpeedMultiplier, 1 + radius * GAME_CONFIG.speedDistanceScale) * 100,
+    );
     this.devText.setText(
-      `HERD ${this.herd.size}  MAX HERD ${this.maxHerdSize}  TURN RATE ${turnPercent}%  LOST ${this.herd.totalLost}  RECRUITED ${this.totalRecruited}  WILD LEFT ${this.wildBison.length}  DESTROYED ${this.totalDestroyed}  DISCOVERIES ${this.landmarkDirector.discoveryCount}\n` +
+      `HERD ${this.herd.size}  MAX HERD ${this.maxHerdSize}  TURN RATE ${turnPercent}%  SPEED ${speedPercent}%  LOST ${this.herd.totalLost}  RECRUITED ${this.totalRecruited}  WILD LEFT ${this.wildBison.length}  DESTROYED ${this.totalDestroyed}  DISCOVERIES ${this.landmarkDirector.discoveryCount}\n` +
         `CELLS LOADED ${this.worldGrid.loadedCount}  LAST CELL (${cell.x},${cell.y})  LAST TEMPLATE ${this.worldGrid.lastTemplate}\n` +
         `RADIUS ${radius}  BIOME ${biomeMix}${river}\n` +
         `1-5: test herd sizes (${TEST_HERD_SIZES.join("/")})`,

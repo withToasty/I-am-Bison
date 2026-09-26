@@ -153,7 +153,11 @@ export const ENCOUNTER_TEMPLATES: EncounterTemplate[] = [
     weight: 1.4,
     length: 460,
     wildGroups: [{ x: 150, y: -160, count: 4, spread: 40 }],
-    rocks: [],
+    // A rock guards the direct line to the reward, so growing the herd
+    // there is itself a small dodge, not a freebie approach - difficulty
+    // pass: this template previously had zero rocks despite being one of
+    // the two highest-band templates.
+    rocks: [{ x: 70, y: -110 }],
     fences: [{ x: 0, y: -320, width: 200 }],
     rivers: [],
   },
@@ -207,9 +211,13 @@ export const ENCOUNTER_TEMPLATES: EncounterTemplate[] = [
     weight: 1.3,
     length: 480,
     wildGroups: [{ x: 190, y: -420, count: 4, spread: 40 }],
+    // Difficulty pass: a third rock tightens the final gap right before
+    // the fence, so the approach itself demands a correction instead of
+    // just the fence-or-detour choice.
     rocks: [
       { x: -60, y: -150 },
       { x: 70, y: -230 },
+      { x: -50, y: -280 },
     ],
     fences: [{ x: -20, y: -330, width: 220 }],
     rivers: [],
