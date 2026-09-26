@@ -8,7 +8,8 @@ export const GAME_CONFIG = {
 
   // Forward movement / steering (shared by the whole herd)
   baseSpeed: 160, // px/s forward speed each bison is pulled toward
-  baseTurnRate: 1.8, // rad/s the herd heading rotates at while steering
+  baseTurnRate: 1.8, // rad/s the herd heading rotates at with a small/empty herd
+  herdTurnPenalty: 0.02, // effectiveTurnRate = baseTurnRate / (1 + herdSize * herdTurnPenalty)
 
   // Boids-inspired per-bison behavior
   cohesionForce: 0.6, // spring constant pulling a bison toward the herd center

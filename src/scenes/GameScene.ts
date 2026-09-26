@@ -3,15 +3,30 @@ import { GAME_CONFIG } from "../config/gameConfig";
 import { Herd } from "../entities/Herd";
 import { SteeringInput } from "../input/SteeringInput";
 
+// Herd sizes bound to the 1-5 keys so 10-vs-50 (and beyond) can be felt
+// back-to-back without recruitment/loss systems, which arrive in later
+// milestones.
+const TEST_HERD_SIZES = [5, 10, 20, 50, 100];
+
+interface GameSceneData {
+  herdSize?: number;
+}
+
 export class GameScene extends Phaser.Scene {
   private herd!: Herd;
   private steering!: SteeringInput;
   private background!: Phaser.GameObjects.TileSprite;
   private cameraTarget!: Phaser.GameObjects.Zone;
   private headingMarker!: Phaser.GameObjects.Graphics;
+  private devText!: Phaser.GameObjects.Text;
+  private herdSize = GAME_CONFIG.herdSize;
 
   constructor() {
     super("GameScene");
+  }
+
+  init(data: GameSceneData): void {
+    this.herdSize = data.herdSize ?? GAME_CONFIG.herdSize;
   }
 
   create(): void {
@@ -22,10 +37,14 @@ export class GameScene extends Phaser.Scene {
       .setOrigin(0, 0)
       .setScrollFactor(0);
 
-    this.herd = new Herd(this, GAME_CONFIG.herdSize, 0, 0);
+    this.herd = new Herd(this, this.herdSize, 0, 0);
     this.steering = new SteeringInput(this);
 
     this.headingMarker = this.add.graphics();
+
+    this.devText = this.add
+      .text(12, 12, "", { fontFamily: "monospace", fontSize: "14px", color: "#eaf3ea" })
+      .setScrollFactor(0);
 
     this.cameraTarget = this.add.zone(this.herd.centerX, this.herd.centerY, 1, 1);
     // roundPixels must stay off: it snaps camera scroll to whole pixels every
@@ -34,6 +53,7 @@ export class GameScene extends Phaser.Scene {
     this.cameras.main.startFollow(this.cameraTarget, false, GAME_CONFIG.cameraLerp, GAME_CONFIG.cameraLerp);
 
     this.scale.on("resize", this.handleResize, this);
+    this.setupHerdSizeTestKeys();
   }
 
   update(_time: number, delta: number): void {
@@ -48,6 +68,30 @@ export class GameScene extends Phaser.Scene {
     this.background.tilePositionY = this.herd.centerY;
 
     this.drawHeadingMarker();
+    this.updateDevText();
+  }
+
+  private updateDevText(): void {
+    const turnPercent = Math.round((this.herd.turnRate / GAME_CONFIG.baseTurnRate) * 100);
+    this.devText.setText(
+      `HERD ${this.herd.size}  TURN RATE ${turnPercent}%\n1-5: test herd sizes (${TEST_HERD_SIZES.join("/")})`,
+    );
+  }
+
+  private setupHerdSizeTestKeys(): void {
+    const keyCodes = [
+      Phaser.Input.Keyboard.KeyCodes.ONE,
+      Phaser.Input.Keyboard.KeyCodes.TWO,
+      Phaser.Input.Keyboard.KeyCodes.THREE,
+      Phaser.Input.Keyboard.KeyCodes.FOUR,
+      Phaser.Input.Keyboard.KeyCodes.FIVE,
+    ];
+
+    keyCodes.forEach((code, i) => {
+      this.input.keyboard?.addKey(code).on("down", () => {
+        this.scene.restart({ herdSize: TEST_HERD_SIZES[i] } satisfies GameSceneData);
+      });
+    });
   }
 
   private drawHeadingMarker(): void {

@@ -32,8 +32,15 @@ export class Herd {
     return this.bison.length;
   }
 
+  // Larger herds turn slower (and therefore wider, at the same forward
+  // speed) with no separate tiering: a continuous, easy-to-tune curve per
+  // spec section 8.
+  get turnRate(): number {
+    return GAME_CONFIG.baseTurnRate / (1 + this.bison.length * GAME_CONFIG.herdTurnPenalty);
+  }
+
   update(dt: number, steerDirection: number): void {
-    this.heading += steerDirection * GAME_CONFIG.baseTurnRate * dt;
+    this.heading += steerDirection * this.turnRate * dt;
 
     const headingDirX = Math.cos(this.heading);
     const headingDirY = Math.sin(this.heading);
