@@ -1,8 +1,10 @@
 // Centralized gameplay tuning. Keep every balance-relevant constant here
 // rather than scattering magic numbers through the scenes/entities.
 export const GAME_CONFIG = {
-  // Herd composition
-  herdSize: 20,
+  // Herd composition. Start solo and grow through recruitment (spec's
+  // "growing herd" fantasy) - use the 1-5 test keys to compare feel at
+  // larger sizes without waiting to recruit up to them.
+  herdSize: 1,
   bisonRadius: 8,
   spawnClusterRadius: 70,
 
