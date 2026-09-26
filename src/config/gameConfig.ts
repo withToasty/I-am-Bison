@@ -142,32 +142,15 @@ export const GAME_CONFIG = {
   collisionShakeDuration: 130,
   collisionShakeIntensity: 0.018,
 
-  // Encounter / route generation (v0.2 M2, spec section 5-13): the fixed,
-  // one-time obstacle layout is replaced by a continuous stream of
-  // hand-authored chunks. Course progress is tracked separately from the
-  // displayed DISTANCE (Math.max(0, spawnY - leaderY)) and drives chunk
-  // spacing, difficulty-band eligibility, and cleanup.
-  // Minimum empty runway (px) after one chunk's content before the next
-  // chunk's content can begin. The next anchor is placed at
-  // (this chunk's far edge) - encounterChunkGap, so a short template leaves
-  // a short gap and a long template leaves the same short gap - previously
-  // this was a flat spacing applied regardless of template length, which
-  // left 90-250px of empty field after every chunk even though most
-  // templates are 300-460px long.
-  encounterChunkGap: 130,
-  encounterSpawnAhead: 1300, // keep the frontier at least this far ahead of the player
-  encounterCleanupBehind: 900, // px past a chunk's far edge before it's torn down
-  encounterInitialSafeDistance: 260, // empty runway before the first encounter
-  encounterMaxCenterOffset: 150, // absolute +/- bound on a chunk anchor's X, from world X=0
-  // Each new chunk's anchor X drifts from the previous one by up to this
-  // much (still clamped to +/-encounterMaxCenterOffset) instead of being
-  // resampled independently, so the course meanders instead of snapping
-  // back toward X=0 every chunk.
-  encounterAnchorStep: 110,
-  // How many of the most recently spawned templates are excluded from
-  // selection (when the eligible pool is large enough to still leave a
-  // choice), so the same layout can't reappear within a short window.
-  encounterHistoryWindow: 2,
+  // World grid (v0.3 M-G1, docs/v0.3-biome-map.md): content lives on an
+  // infinite grid of square cells. A cell's content is a pure function of
+  // its coordinates (WorldGrid picks a template and rotation from a seed
+  // derived from cellX/cellY), so revisiting a cell after it's been
+  // unloaded reproduces the same layout instead of finding it deleted -
+  // this replaces v0.2 M2's one-way spawn-ahead/delete-behind frontier,
+  // which only worked because the herd was assumed to never turn back.
+  worldCellSize: 600, // px per cell, both axes
+  worldLoadRadiusCells: 2, // cells kept loaded in each direction -> a 5x5 window around the player
 
   // Simulation
   maxDeltaMs: 33, // clamp per-frame dt (~30fps floor) to avoid physics spikes on hitches

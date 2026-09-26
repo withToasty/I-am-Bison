@@ -7,7 +7,7 @@ import { Rock } from "../obstacles/Rock";
 import { Fence } from "../obstacles/Fence";
 import { River } from "../obstacles/River";
 import { SteeringInput } from "../input/SteeringInput";
-import { EncounterDirector } from "../systems/EncounterDirector";
+import { WorldGrid } from "../systems/WorldGrid";
 import { HUD } from "../ui/HUD";
 import { lighten, darken } from "../utils/color";
 import type { GameOverData } from "./GameOverScene";
@@ -41,7 +41,7 @@ export class GameScene extends Phaser.Scene {
   private maxHerdSize = 0;
   private spawnX = 0;
   private spawnY = 0;
-  private encounterDirector!: EncounterDirector;
+  private worldGrid!: WorldGrid;
 
   // v0.2 M1 feel pass
   private dustEmitter!: Phaser.GameObjects.Particles.ParticleEmitter;
@@ -73,10 +73,10 @@ export class GameScene extends Phaser.Scene {
       .setDepth(-10);
 
     // Rivers, rocks, fences, and wild bison are no longer a one-time fixed
-    // layout - EncounterDirector below spawns them continuously as chunks.
-    // Start every array empty; rivers are still positioned early in the
-    // display list (via an explicit depth in EncounterDirector) so bison,
-    // rocks, and fences render on top of them regardless of spawn order.
+    // layout - WorldGrid below spawns them continuously by cell. Start
+    // every array empty; rivers are still positioned early in the display
+    // list (via an explicit depth in WorldGrid) so bison, rocks, and
+    // fences render on top of them regardless of spawn order.
     this.rivers = [];
     this.rocks = [];
     this.fences = [];
@@ -90,8 +90,8 @@ export class GameScene extends Phaser.Scene {
     this.bisonGraphics = this.add.graphics();
 
     this.herd = new Herd(this.herdSize, 0, 0);
-    this.encounterDirector = new EncounterDirector(this, this.rocks, this.fences, this.rivers, this.wildBison);
-    this.encounterDirector.primeInitialEncounters();
+    this.worldGrid = new WorldGrid(this, this.rocks, this.fences, this.rivers, this.wildBison);
+    this.worldGrid.update(this.herd.leader.x, this.herd.leader.y); // load the cells around spawn
     this.totalRecruited = 0;
     this.totalDestroyed = 0;
     this.maxDistanceFromSpawn = 0;
@@ -189,7 +189,7 @@ export class GameScene extends Phaser.Scene {
     this.totalRecruited += recruitedThisFrame;
     if (recruitedThisFrame > 0) this.showRecruitFeedback(recruitedThisFrame);
 
-    this.encounterDirector.update(this.herd.leader.y);
+    this.worldGrid.update(this.herd.leader.x, this.herd.leader.y);
 
     this.updateCameraZoom();
     this.updateCameraTarget();
@@ -340,13 +340,10 @@ export class GameScene extends Phaser.Scene {
 
   private updateDevText(): void {
     const turnPercent = Math.round((this.herd.turnRate / GAME_CONFIG.baseTurnRate) * 100);
-    // Course progress (spec section 4, distinct from the displayed
-    // DISTANCE): forward travel only, used by EncounterDirector for
-    // difficulty banding and cleanup - shown here for tuning, not gameplay.
-    const courseProgress = Math.round(Math.max(0, this.spawnY - this.herd.leader.y));
+    const cell = this.worldGrid.lastCell;
     this.devText.setText(
       `HERD ${this.herd.size}  MAX HERD ${this.maxHerdSize}  TURN RATE ${turnPercent}%  LOST ${this.herd.totalLost}  RECRUITED ${this.totalRecruited}  WILD LEFT ${this.wildBison.length}  DESTROYED ${this.totalDestroyed}\n` +
-        `PROGRESS ${courseProgress}  ENCOUNTERS ${this.encounterDirector.encounterIndex}  ACTIVE ${this.encounterDirector.activeCount}  LAST ${this.encounterDirector.lastTemplateId}\n` +
+        `CELLS LOADED ${this.worldGrid.loadedCount}  LAST CELL (${cell.x},${cell.y})  LAST TEMPLATE ${this.worldGrid.lastTemplate}\n` +
         `1-5: test herd sizes (${TEST_HERD_SIZES.join("/")})`,
     );
   }
