@@ -456,6 +456,27 @@ export class GameScene extends Phaser.Scene {
     this.fillBisonBatch(g, this.herd.bison);
   }
 
+  // Facet colors per base bison color, computed once and reused every
+  // frame - there are only ever 4 base colors (leader/herd/wild/stranded),
+  // never one per bison, so this never grows unbounded.
+  private facetPaletteCache = new Map<number, number[]>();
+
+  private getFacetPalette(color: number): number[] {
+    let palette = this.facetPaletteCache.get(color);
+    if (!palette) {
+      palette = GAME_CONFIG.lowPolyShadeLevels.map((level) =>
+        level < 0 ? darken(color, -level) : level > 0 ? lighten(color, level) : color,
+      );
+      this.facetPaletteCache.set(color, palette);
+    }
+    return palette;
+  }
+
+  // Low-poly silhouette (art direction pass): each bison is a ring of flat
+  // triangular facets (entities/Bison.ts) instead of a smooth circle.
+  // Batched by (color, shade level) rather than by bison - a fixed number
+  // of fill passes (colors x shade levels) regardless of herd size, same
+  // strategy as the old single-color-fill approach it replaces.
   private fillBisonBatch(g: Phaser.GameObjects.Graphics, list: Bison[]): void {
     if (list.length === 0) return;
 
@@ -466,35 +487,56 @@ export class GameScene extends Phaser.Scene {
       else byColor.set(b.color, [b]);
     }
 
-    const r = GAME_CONFIG.bisonRadius;
     for (const [color, group] of byColor) {
-      // Base body + a thin darker rim, still one fill/stroke pass per color
-      // group rather than per bison.
-      g.beginPath();
-      for (const b of group) {
-        // moveTo repositions the path's current point without drawing a
-        // line, so each arc() below starts its own independent subpath
-        // instead of being connected to the previous circle.
-        g.moveTo(b.x + r, b.y);
-        g.arc(b.x, b.y, r, 0, Math.PI * 2);
-      }
-      g.fillStyle(color, 1);
-      g.fillPath();
-      g.lineStyle(1.5, darken(color, 0.28), 0.55);
-      g.strokePath();
+      const palette = this.getFacetPalette(color);
+      const buckets: { bx: number; by: number; x1: number; y1: number; x2: number; y2: number }[][] = palette.map(
+        () => [],
+      );
 
-      // A small lighter dome offset toward the upper-left of each body so a
-      // flat fill reads as rounded rather than a disc.
-      const hr = r * 0.5;
-      const ox = -r * 0.28;
-      const oy = -r * 0.32;
+      for (const b of group) {
+        const facets = b.facets;
+        const n = facets.length;
+        for (let i = 0; i < n; i++) {
+          const cur = facets[i];
+          const next = facets[(i + 1) % n];
+          buckets[cur.shadeLevel].push({
+            bx: b.x,
+            by: b.y,
+            x1: b.x + Math.cos(cur.angle) * cur.radius,
+            y1: b.y + Math.sin(cur.angle) * cur.radius,
+            x2: b.x + Math.cos(next.angle) * next.radius,
+            y2: b.y + Math.sin(next.angle) * next.radius,
+          });
+        }
+      }
+
+      for (let level = 0; level < palette.length; level++) {
+        const triangles = buckets[level];
+        if (triangles.length === 0) continue;
+        g.beginPath();
+        for (const t of triangles) {
+          g.moveTo(t.bx, t.by);
+          g.lineTo(t.x1, t.y1);
+          g.lineTo(t.x2, t.y2);
+        }
+        g.fillStyle(palette[level], 1);
+        g.fillPath();
+      }
+
+      // Thin dark outline around each bison's full silhouette, drawn on top
+      // of the facet fills - same per-color batching as the fills above.
       g.beginPath();
       for (const b of group) {
-        g.moveTo(b.x + ox + hr, b.y + oy);
-        g.arc(b.x + ox, b.y + oy, hr, 0, Math.PI * 2);
+        const facets = b.facets;
+        const first = facets[0];
+        g.moveTo(b.x + Math.cos(first.angle) * first.radius, b.y + Math.sin(first.angle) * first.radius);
+        for (let i = 1; i <= facets.length; i++) {
+          const f = facets[i % facets.length];
+          g.lineTo(b.x + Math.cos(f.angle) * f.radius, b.y + Math.sin(f.angle) * f.radius);
+        }
       }
-      g.fillStyle(lighten(color, 0.22), 0.5);
-      g.fillPath();
+      g.lineStyle(1.2, darken(color, 0.35), 0.6);
+      g.strokePath();
     }
   }
 
