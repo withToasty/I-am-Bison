@@ -8,6 +8,13 @@
 最新の実装範囲・未確認事項・次の作業は [開発状況](docs/STATUS.md) を参照してください。
 「実装済み」は実機での品質確認完了を意味しません。
 
+## プレイ
+
+https://withtoasty.github.io/I-am-Bison/
+
+`main` へのpushでGitHub Actions（`.github/workflows/deploy.yml`）が自動デプロイします。
+初回のみ、リポジトリの Settings → Pages → Source を「GitHub Actions」に設定してください。
+
 ## 起動・確認
 
 Node.jsはVite 7の要件を満たす環境を使用してください。
