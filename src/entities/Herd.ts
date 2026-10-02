@@ -94,6 +94,20 @@ export class Herd {
     const baseAlignmentBlend = Math.min(1, GAME_CONFIG.alignmentForce * dt);
     const stragglers: Bison[] = [];
 
+    // Spatial hash of everyone's positions at the start of this step, so
+    // separation below is ~O(n) instead of every bison checking every
+    // other bison. Positions mutate during the loop, same as before this
+    // was added (each bison saw earlier-updated neighbors' new positions);
+    // using start-of-step positions for all is equivalent within one frame.
+    const sepRadius = GAME_CONFIG.separationRadius;
+    const grid = new Map<number, Bison[]>();
+    for (const b of this.bison) {
+      const key = Math.floor(b.x / sepRadius) * 73856093 + Math.floor(b.y / sepRadius) * 19349663;
+      const cell = grid.get(key);
+      if (cell) cell.push(b);
+      else grid.set(key, [b]);
+    }
+
     for (const b of this.bison) {
       if (b === leader) continue;
 
@@ -118,15 +132,25 @@ export class Herd {
       // Separation: push away from bison (including the leader) that are
       // too close, so followers gather around the leader without stacking
       // on top of it.
-      for (const other of this.bison) {
-        if (other === b) continue;
-        const dx = b.x - other.x;
-        const dy = b.y - other.y;
-        const dist = Math.hypot(dx, dy);
-        if (dist > 0 && dist < GAME_CONFIG.separationRadius) {
-          const strength = (GAME_CONFIG.separationRadius - dist) / GAME_CONFIG.separationRadius;
-          ax += (dx / dist) * strength * GAME_CONFIG.separationForce;
-          ay += (dy / dist) * strength * GAME_CONFIG.separationForce;
+      // Only bison in the 3x3 grid cells around this one can be within
+      // separationRadius, so scan just those instead of the whole herd.
+      const cx = Math.floor(b.x / sepRadius);
+      const cy = Math.floor(b.y / sepRadius);
+      for (let gy = cy - 1; gy <= cy + 1; gy++) {
+        for (let gx = cx - 1; gx <= cx + 1; gx++) {
+          const cell = grid.get(gx * 73856093 + gy * 19349663);
+          if (!cell) continue;
+          for (const other of cell) {
+            if (other === b) continue;
+            const dx = b.x - other.x;
+            const dy = b.y - other.y;
+            const dist = Math.hypot(dx, dy);
+            if (dist > 0 && dist < sepRadius) {
+              const strength = (sepRadius - dist) / sepRadius;
+              ax += (dx / dist) * strength * GAME_CONFIG.separationForce;
+              ay += (dy / dist) * strength * GAME_CONFIG.separationForce;
+            }
+          }
         }
       }
 
