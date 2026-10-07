@@ -37,8 +37,9 @@ npm run preview
 
 1. [STATUS.md](docs/STATUS.md): 最新コードの現在地と次の確認項目。
 2. [v0.3のワールド設計](docs/v0.3-biome-map.md): 座標ベースの生成・バイオーム・ランドマーク。
-3. [初期仕様](docs/specification.md): M0–M10の企画・実装順。
-4. [v0.2の操作感](docs/v0.2-m1-feel.md): カメラ・砂埃・加入／衝突演出。
-5. [旧v0.2ルート設計](docs/v0.2-m2-encounter-route.md): 過去の一本道方式。現在はWorldGridに置き換え済み。
+3. [グラフィック基準](docs/graphics-reference.md): ローポリ・バイソンのキャラクター造形イメージ。
+4. [初期仕様](docs/specification.md): M0–M10の企画・実装順。
+5. [v0.2の操作感](docs/v0.2-m1-feel.md): カメラ・砂埃・加入／衝突演出。
+6. [旧v0.2ルート設計](docs/v0.2-m2-encounter-route.md): 過去の一本道方式。現在はWorldGridに置き換え済み。
 
 各仕様書は作成時点の設計記録です。後続実装との差分はSTATUS.mdで確認してください。
