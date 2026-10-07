@@ -229,7 +229,7 @@ export class GameScene extends Phaser.Scene {
     this.updateDust(dt);
     for (const river of this.rivers) river.update(dt);
 
-    this.drawBison();
+    this.drawBison(delta);
     this.drawHeadingMarker();
     this.hud.update(this.herd.size, this.maxDistanceFromSpawn / GAME_CONFIG.pixelsPerMeter);
     this.updateDevText();
@@ -449,12 +449,12 @@ export class GameScene extends Phaser.Scene {
   // every shared edge (each circle's anti-aliased boundary compositing
   // against the one drawn before it) that became a visible dark ring once
   // enough bison packed together.
-  private drawBison(): void {
+  private drawBison(delta: number): void {
     const g = this.bisonGraphics;
     g.clear();
-    this.fillBisonBatch(g, this.wildBison);
-    this.fillBisonBatch(g, this.herd.strandedBison);
-    this.fillBisonBatch(g, this.herd.bison);
+    this.fillBisonBatch(g, this.wildBison, delta);
+    this.fillBisonBatch(g, this.herd.strandedBison, delta);
+    this.fillBisonBatch(g, this.herd.bison, delta);
   }
 
   // Facet colors per base bison color, computed once and reused every
@@ -476,7 +476,7 @@ export class GameScene extends Phaser.Scene {
   // Low-poly bison model (entities/BisonShape.ts), rotated to each bison's
   // heading. Batched by (color, shade level) rather than by bison, so the
   // number of fill passes depends on colors x shade levels, not herd size.
-  private fillBisonBatch(g: Phaser.GameObjects.Graphics, list: Bison[]): void {
+  private fillBisonBatch(g: Phaser.GameObjects.Graphics, list: Bison[], delta: number): void {
     if (list.length === 0) return;
 
     const byColor = new Map<number, Bison[]>();
@@ -503,25 +503,38 @@ export class GameScene extends Phaser.Scene {
           const diff = Phaser.Math.Angle.Wrap(Math.atan2(b.vy, b.vx) - b.heading);
           b.heading += diff * GAME_CONFIG.bisonTurnEase;
         }
+        // Run cycle: phase advances with distance covered, so a faster
+        // bison strides faster and a stopped one stands still.
+        const speed = Math.hypot(b.vx, b.vy);
+        b.gaitPhase += speed * (delta / 1000) * GAME_CONFIG.gaitStridesPerPx * Math.PI * 2;
+        const moving = Math.min(1, speed / GAME_CONFIG.bisonFacingMinSpeed);
+        const bob = 1 + Math.sin(b.gaitPhase * 2) * GAME_CONFIG.gaitBodyBob * moving;
+        const sway = Math.sin(b.gaitPhase) * GAME_CONFIG.gaitSway * moving;
         const cos = Math.cos(b.heading);
         const sin = Math.sin(b.heading);
-        const push = (out: number[], t: ShapeTriangle) => {
+        // dx/dy: local-frame offset (bisonRadius units); k: local scale.
+        const push = (out: number[], t: ShapeTriangle, k: number, dx: number, dy: number) => {
+          const px = (x: number) => (x * k + dx) * scale;
+          const py = (y: number) => (y * k + dy) * scale;
           out.push(
-            b.x + (t.ax * cos - t.ay * sin) * scale,
-            b.y + (t.ax * sin + t.ay * cos) * scale,
-            b.x + (t.bx * cos - t.by * sin) * scale,
-            b.y + (t.bx * sin + t.by * cos) * scale,
-            b.x + (t.cx * cos - t.cy * sin) * scale,
-            b.y + (t.cx * sin + t.cy * cos) * scale,
+            b.x + px(t.ax) * cos - py(t.ay) * sin,
+            b.y + px(t.ax) * sin + py(t.ay) * cos,
+            b.x + px(t.bx) * cos - py(t.by) * sin,
+            b.y + px(t.bx) * sin + py(t.by) * cos,
+            b.x + px(t.cx) * cos - py(t.cy) * sin,
+            b.y + px(t.cx) * sin + py(t.cy) * cos,
           );
         };
         for (const t of BODY_TRIANGLES) {
           const lit = Math.cos(t.normalAngle + b.heading - GAME_CONFIG.lowPolyLightAngle);
           const base = Math.floor(((lit + 1) / 2) * levels.length);
-          push(buckets[Phaser.Math.Clamp(base + t.trim, 0, maxLevel)], t);
+          push(buckets[Phaser.Math.Clamp(base + t.trim, 0, maxLevel)], t, bob, 0, sway);
         }
-        for (const t of HOOF_TRIANGLES) push(hooves, t);
-        for (const t of HORN_TRIANGLES) push(horns, t);
+        for (const t of HOOF_TRIANGLES) {
+          const swing = Math.sin(b.gaitPhase + (t.gait ? Math.PI : 0)) * GAME_CONFIG.gaitHoofSwing * moving;
+          push(hooves, t, 1, swing, sway);
+        }
+        for (const t of HORN_TRIANGLES) push(horns, t, bob, 0, sway);
       }
 
       const fill = (verts: number[], fillColor: number) => {
@@ -538,7 +551,7 @@ export class GameScene extends Phaser.Scene {
       };
 
       // Hooves go under the body so only the tips show.
-      fill(hooves, darken(color, 0.34));
+      fill(hooves, darken(color, 0.26));
       for (let level = 0; level < palette.length; level++) fill(buckets[level], palette[level]);
       fill(horns, HORN_COLOR);
     }

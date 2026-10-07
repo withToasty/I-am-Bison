@@ -49,6 +49,9 @@ export interface ShapeTriangle {
   // frame; combined with heading to decide how much it faces the light.
   normalAngle: number;
   trim: number;
+  // Hooves only: which leg pair this belongs to (0 or 1). The pairs swing
+  // half a stride apart while running.
+  gait?: 0 | 1;
 }
 
 export const BODY_TRIANGLES: ShapeTriangle[] = OUTLINE.map((p, i) => {
@@ -81,7 +84,7 @@ export const HORN_TRIANGLES: ShapeTriangle[] = [1, -1].map((s) => ({
 
 // Dark hoof tips poking out past the body edge: front pair under the
 // shoulders, rear pair at the haunches (per the reference's dark leg ends).
-function hoof(x: number, y: number): ShapeTriangle {
+function hoof(x: number, y: number, gait: 0 | 1): ShapeTriangle {
   const s = Math.sign(y);
   return {
     ax: x - 0.28,
@@ -92,9 +95,11 @@ function hoof(x: number, y: number): ShapeTriangle {
     cy: y - 0.05 * s,
     normalAngle: 0,
     trim: 0,
+    gait,
   };
 }
-export const HOOF_TRIANGLES: ShapeTriangle[] = [hoof(0.7, 1.05), hoof(0.7, -1.05), hoof(-0.85, 0.7), hoof(-0.85, -0.7)];
+// Diagonal pairs move together (front-left with rear-right), like a trot.
+export const HOOF_TRIANGLES: ShapeTriangle[] = [hoof(0.7, 1.05, 0), hoof(0.7, -1.05, 1), hoof(-0.85, 0.7, 1), hoof(-0.85, -0.7, 0)];
 
 // Whole-model scale (in bisonRadius units' multiplier) so the longer body
 // still reads as about one bison-radius wide.

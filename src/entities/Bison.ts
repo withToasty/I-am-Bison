@@ -27,6 +27,8 @@ export class Bison {
   readonly agility: number;
   // Facing angle (radians) used only for drawing: eases toward the velocity
   // direction so the model turns smoothly instead of snapping.
+  // Run-cycle phase in radians; advances with speed while drawing.
+  gaitPhase = Phaser.Math.FloatBetween(0, Math.PI * 2);
   heading = Phaser.Math.FloatBetween(-Math.PI, Math.PI);
 
   constructor(x: number, y: number, color: number = GAME_CONFIG.bisonColor) {
