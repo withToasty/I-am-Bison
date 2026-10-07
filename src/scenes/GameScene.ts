@@ -2,6 +2,7 @@ import Phaser from "phaser";
 import { GAME_CONFIG } from "../config/gameConfig";
 import { Herd } from "../entities/Herd";
 import { Bison } from "../entities/Bison";
+import { BODY_TRIANGLES, HORN_TRIANGLES, HORN_COLOR, SHAPE_SCALE, type ShapeTriangle } from "../entities/BisonShape";
 import { WildBison } from "../entities/WildBison";
 import { Rock } from "../obstacles/Rock";
 import { Fence } from "../obstacles/Fence";
@@ -472,11 +473,9 @@ export class GameScene extends Phaser.Scene {
     return palette;
   }
 
-  // Low-poly silhouette (art direction pass): each bison is a ring of flat
-  // triangular facets (entities/Bison.ts) instead of a smooth circle.
-  // Batched by (color, shade level) rather than by bison - a fixed number
-  // of fill passes (colors x shade levels) regardless of herd size, same
-  // strategy as the old single-color-fill approach it replaces.
+  // Low-poly bison model (entities/BisonShape.ts), rotated to each bison's
+  // heading. Batched by (color, shade level) rather than by bison, so the
+  // number of fill passes depends on colors x shade levels, not herd size.
   private fillBisonBatch(g: Phaser.GameObjects.Graphics, list: Bison[]): void {
     if (list.length === 0) return;
 
@@ -487,56 +486,57 @@ export class GameScene extends Phaser.Scene {
       else byColor.set(b.color, [b]);
     }
 
+    const scale = GAME_CONFIG.bisonRadius * SHAPE_SCALE;
+    const levels = GAME_CONFIG.lowPolyShadeLevels;
+    const maxLevel = levels.length - 1;
+    const minSpeed2 = GAME_CONFIG.bisonFacingMinSpeed * GAME_CONFIG.bisonFacingMinSpeed;
+
     for (const [color, group] of byColor) {
       const palette = this.getFacetPalette(color);
-      const buckets: { bx: number; by: number; x1: number; y1: number; x2: number; y2: number }[][] = palette.map(
-        () => [],
-      );
+      const buckets: number[][] = palette.map(() => []);
+      const horns: number[] = [];
 
       for (const b of group) {
-        const facets = b.facets;
-        const n = facets.length;
-        for (let i = 0; i < n; i++) {
-          const cur = facets[i];
-          const next = facets[(i + 1) % n];
-          buckets[cur.shadeLevel].push({
-            bx: b.x,
-            by: b.y,
-            x1: b.x + Math.cos(cur.angle) * cur.radius,
-            y1: b.y + Math.sin(cur.angle) * cur.radius,
-            x2: b.x + Math.cos(next.angle) * next.radius,
-            y2: b.y + Math.sin(next.angle) * next.radius,
-          });
+        // Ease the facing toward the velocity direction (drawing-only state).
+        if (b.vx * b.vx + b.vy * b.vy > minSpeed2) {
+          const diff = Phaser.Math.Angle.Wrap(Math.atan2(b.vy, b.vx) - b.heading);
+          b.heading += diff * GAME_CONFIG.bisonTurnEase;
         }
+        const cos = Math.cos(b.heading);
+        const sin = Math.sin(b.heading);
+        const push = (out: number[], t: ShapeTriangle) => {
+          out.push(
+            b.x + (t.ax * cos - t.ay * sin) * scale,
+            b.y + (t.ax * sin + t.ay * cos) * scale,
+            b.x + (t.bx * cos - t.by * sin) * scale,
+            b.y + (t.bx * sin + t.by * cos) * scale,
+            b.x + (t.cx * cos - t.cy * sin) * scale,
+            b.y + (t.cx * sin + t.cy * cos) * scale,
+          );
+        };
+        for (const t of BODY_TRIANGLES) {
+          const lit = Math.cos(t.normalAngle + b.heading - GAME_CONFIG.lowPolyLightAngle);
+          const base = Math.floor(((lit + 1) / 2) * levels.length);
+          push(buckets[Phaser.Math.Clamp(base + t.trim, 0, maxLevel)], t);
+        }
+        for (const t of HORN_TRIANGLES) push(horns, t);
       }
 
-      for (let level = 0; level < palette.length; level++) {
-        const triangles = buckets[level];
-        if (triangles.length === 0) continue;
+      const fill = (verts: number[], fillColor: number) => {
+        if (verts.length === 0) return;
         g.beginPath();
-        for (const t of triangles) {
-          g.moveTo(t.bx, t.by);
-          g.lineTo(t.x1, t.y1);
-          g.lineTo(t.x2, t.y2);
+        for (let i = 0; i < verts.length; i += 6) {
+          g.moveTo(verts[i], verts[i + 1]);
+          g.lineTo(verts[i + 2], verts[i + 3]);
+          g.lineTo(verts[i + 4], verts[i + 5]);
+          g.closePath();
         }
-        g.fillStyle(palette[level], 1);
+        g.fillStyle(fillColor, 1);
         g.fillPath();
-      }
+      };
 
-      // Thin dark outline around each bison's full silhouette, drawn on top
-      // of the facet fills - same per-color batching as the fills above.
-      g.beginPath();
-      for (const b of group) {
-        const facets = b.facets;
-        const first = facets[0];
-        g.moveTo(b.x + Math.cos(first.angle) * first.radius, b.y + Math.sin(first.angle) * first.radius);
-        for (let i = 1; i <= facets.length; i++) {
-          const f = facets[i % facets.length];
-          g.lineTo(b.x + Math.cos(f.angle) * f.radius, b.y + Math.sin(f.angle) * f.radius);
-        }
-      }
-      g.lineStyle(1.2, darken(color, 0.35), 0.6);
-      g.strokePath();
+      for (let level = 0; level < palette.length; level++) fill(buckets[level], palette[level]);
+      fill(horns, HORN_COLOR);
     }
   }
 

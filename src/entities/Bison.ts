@@ -1,39 +1,6 @@
 import Phaser from "phaser";
 import { GAME_CONFIG } from "../config/gameConfig";
 
-// One triangular facet of a bison's low-poly silhouette (visual only - see
-// GameScene.fillBisonBatch): `angle`/`radius` place this facet's outer
-// vertex relative to the bison's own x/y, and `shadeLevel` is a fixed index
-// into the per-color palette GameScene derives at draw time. Precomputed
-// once per bison (not per frame) so the faceted shape doesn't jitter, and
-// not tied to any seeded RNG - it's cosmetic identity, not gameplay state,
-// so it never needs to reproduce identically across a reload.
-export interface BisonFacet {
-  angle: number;
-  radius: number;
-  shadeLevel: number;
-}
-
-function buildFacets(): BisonFacet[] {
-  const count = GAME_CONFIG.lowPolyFacetCount;
-  const facets: BisonFacet[] = [];
-  for (let i = 0; i < count; i++) {
-    const baseAngle = (i / count) * Math.PI * 2;
-    const angle = baseAngle + Phaser.Math.FloatBetween(-GAME_CONFIG.lowPolyAngleJitter, GAME_CONFIG.lowPolyAngleJitter);
-    const radius =
-      GAME_CONFIG.bisonRadius *
-      (1 + Phaser.Math.FloatBetween(-GAME_CONFIG.lowPolyRadiusJitter, GAME_CONFIG.lowPolyRadiusJitter));
-    // Flat-shaded like a low-poly model: how much this facet faces the
-    // fixed "light" direction decides which discrete shade it gets, not a
-    // smooth gradient.
-    const lit = Math.cos(angle - GAME_CONFIG.lowPolyLightAngle);
-    const levels = GAME_CONFIG.lowPolyShadeLevels;
-    const shadeLevel = Phaser.Math.Clamp(Math.floor(((lit + 1) / 2) * levels.length), 0, levels.length - 1);
-    facets.push({ angle, radius, shadeLevel });
-  }
-  return facets;
-}
-
 // A single placeholder bison. It owns its own position/velocity and current
 // display color; Herd is responsible for applying boids forces and moving it
 // each frame. It has no graphics object of its own - GameScene batch-draws
@@ -58,14 +25,14 @@ export class Bison {
   // changing herd heading. Most bison are close to 1; a few are naturally
   // slow and risk falling behind during a sharp, sustained turn.
   readonly agility: number;
-  // This bison's own low-poly silhouette, fixed for its whole lifetime.
-  readonly facets: BisonFacet[];
+  // Facing angle (radians) used only for drawing: eases toward the velocity
+  // direction so the model turns smoothly instead of snapping.
+  heading = Phaser.Math.FloatBetween(-Math.PI, Math.PI);
 
   constructor(x: number, y: number, color: number = GAME_CONFIG.bisonColor) {
     this.x = x;
     this.y = y;
     this.color = color;
     this.agility = Phaser.Math.FloatBetween(GAME_CONFIG.minAgility, GAME_CONFIG.maxAgility);
-    this.facets = buildFacets();
   }
 }
