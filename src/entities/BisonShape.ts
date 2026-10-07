@@ -8,20 +8,20 @@ export type Vec = readonly [number, number];
 // Body outline, clockwise from the rump: the heavy shoulder/hump bulges at
 // the front-middle, the neck narrows into a small head.
 const OUTLINE: Vec[] = [
-  [-1.35, 0],
-  [-1.05, 0.62],
-  [-0.35, 0.98],
-  [0.45, 1.08],
-  [0.95, 0.72],
+  [-1.3, 0],
+  [-1.0, 0.5],
+  [-0.35, 0.88],
+  [0.5, 1.15],
+  [0.95, 0.75],
   [1.3, 0.55],
   [1.75, 0.4],
   [2.0, 0],
   [1.75, -0.4],
   [1.3, -0.55],
   [0.95, -0.72],
-  [0.45, -1.08],
-  [-0.35, -0.98],
-  [-1.05, -0.62],
+  [0.5, -1.15],
+  [-0.35, -0.88],
+  [-1.0, -0.5],
 ];
 
 // Fan centre sits over the hump so the shoulder facets fan out from the peak.
@@ -78,6 +78,23 @@ export const HORN_TRIANGLES: ShapeTriangle[] = [1, -1].map((s) => ({
   normalAngle: 0,
   trim: 0,
 }));
+
+// Dark hoof tips poking out past the body edge: front pair under the
+// shoulders, rear pair at the haunches (per the reference's dark leg ends).
+function hoof(x: number, y: number): ShapeTriangle {
+  const s = Math.sign(y);
+  return {
+    ax: x - 0.28,
+    ay: y - 0.1 * s,
+    bx: x + 0.12,
+    by: y + 0.38 * s,
+    cx: x + 0.3,
+    cy: y - 0.05 * s,
+    normalAngle: 0,
+    trim: 0,
+  };
+}
+export const HOOF_TRIANGLES: ShapeTriangle[] = [hoof(0.7, 1.05), hoof(0.7, -1.05), hoof(-0.85, 0.7), hoof(-0.85, -0.7)];
 
 // Whole-model scale (in bisonRadius units' multiplier) so the longer body
 // still reads as about one bison-radius wide.

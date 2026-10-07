@@ -2,7 +2,7 @@ import Phaser from "phaser";
 import { GAME_CONFIG } from "../config/gameConfig";
 import { Herd } from "../entities/Herd";
 import { Bison } from "../entities/Bison";
-import { BODY_TRIANGLES, HORN_TRIANGLES, HORN_COLOR, SHAPE_SCALE, type ShapeTriangle } from "../entities/BisonShape";
+import { BODY_TRIANGLES, HORN_TRIANGLES, HOOF_TRIANGLES, HORN_COLOR, SHAPE_SCALE, type ShapeTriangle } from "../entities/BisonShape";
 import { WildBison } from "../entities/WildBison";
 import { Rock } from "../obstacles/Rock";
 import { Fence } from "../obstacles/Fence";
@@ -495,6 +495,7 @@ export class GameScene extends Phaser.Scene {
       const palette = this.getFacetPalette(color);
       const buckets: number[][] = palette.map(() => []);
       const horns: number[] = [];
+      const hooves: number[] = [];
 
       for (const b of group) {
         // Ease the facing toward the velocity direction (drawing-only state).
@@ -519,6 +520,7 @@ export class GameScene extends Phaser.Scene {
           const base = Math.floor(((lit + 1) / 2) * levels.length);
           push(buckets[Phaser.Math.Clamp(base + t.trim, 0, maxLevel)], t);
         }
+        for (const t of HOOF_TRIANGLES) push(hooves, t);
         for (const t of HORN_TRIANGLES) push(horns, t);
       }
 
@@ -535,6 +537,8 @@ export class GameScene extends Phaser.Scene {
         g.fillPath();
       };
 
+      // Hooves go under the body so only the tips show.
+      fill(hooves, darken(color, 0.34));
       for (let level = 0; level < palette.length; level++) fill(buckets[level], palette[level]);
       fill(horns, HORN_COLOR);
     }
