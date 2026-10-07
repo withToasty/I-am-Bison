@@ -225,15 +225,15 @@ export const GAME_CONFIG = {
   headingMarkerColor: 0xffee58,
   headingMarkerLength: 90,
 
-  // Low-poly bison silhouette (art direction pass - a top-down stand-in for
-  // "faceted 3D model" since the camera is locked straight down and there's
-  // no real 3D geometry to shade). Each bison gets a fixed ring of flat
-  // triangular facets instead of a smooth circle; see entities/Bison.ts.
-  lowPolyFacetCount: 6,
-  lowPolyRadiusJitter: 0.28, // +/- fraction of bisonRadius per facet vertex
-  lowPolyAngleJitter: 0.18, // +/- radians per facet vertex, off the even spacing
+  // Low-poly bison model (see entities/BisonShape.ts): a fixed light
+  // direction picks one of these discrete brightness steps (relative to the
+  // base color) per facet - flat-shaded, not a smooth gradient.
   lowPolyLightAngle: (-3 * Math.PI) / 4, // fixed "sun" direction, upper-left
-  // Discrete brightness steps a facet can land on (relative to the base
-  // color) - flat-shaded like real low-poly faces, not a smooth gradient.
   lowPolyShadeLevels: [-0.22, -0.1, 0, 0.12, 0.24],
+  gaitStridesPerPx: 0.011, // run-cycle revolutions per pixel travelled
+  gaitHoofSwing: 0.3, // hoof travel along the body axis (bisonRadius units)
+  gaitBodyBob: 0.05, // +/- fractional body scale pulse, twice per stride
+  gaitSway: 0.07, // side-to-side body sway (bisonRadius units)
+  bisonTurnEase: 0.2, // fraction of the heading gap closed per frame
+  bisonFacingMinSpeed: 6, // below this the model keeps its last facing
 };
