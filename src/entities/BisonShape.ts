@@ -24,8 +24,19 @@ const OUTLINE: Vec[] = [
   [-1.0, -0.5],
 ];
 
-// Fan centre sits over the hump so the shoulder facets fan out from the peak.
-const HUMP: Vec = [0.3, 0];
+// Spine points along the centreline. Outline edges fan out to whichever
+// spine point is nearest in x, and a bridging facet joins neighbouring spine
+// points, giving the back a ridge of facets instead of one fan.
+const SPINE: Vec[] = [
+  [-0.55, 0], // haunch
+  [0.3, 0], // hump peak
+  [1.25, 0], // neck
+];
+
+function spineIndex(a: Vec, b: Vec): number {
+  const mx = (a[0] + b[0]) / 2;
+  return mx < -0.2 ? 0 : mx < 0.95 ? 1 : 2;
+}
 
 // Per-facet brightness nudge in shade-level steps: the hump catches light,
 // the head sits in a darker tone, the rump falls away.
@@ -54,21 +65,35 @@ export interface ShapeTriangle {
   gait?: 0 | 1;
 }
 
-export const BODY_TRIANGLES: ShapeTriangle[] = OUTLINE.map((p, i) => {
-  const q = OUTLINE[(i + 1) % OUTLINE.length];
-  const mx = (HUMP[0] + p[0] + q[0]) / 3;
-  const my = (HUMP[1] + p[1] + q[1]) / 3;
+function facet(a: Vec, b: Vec, c: Vec, trimValue: number): ShapeTriangle {
+  const mx = (a[0] + b[0] + c[0]) / 3;
+  const my = (a[1] + b[1] + c[1]) / 3;
   return {
-    ax: HUMP[0],
-    ay: HUMP[1],
-    bx: p[0],
-    by: p[1],
-    cx: q[0],
-    cy: q[1],
+    ax: a[0],
+    ay: a[1],
+    bx: b[0],
+    by: b[1],
+    cx: c[0],
+    cy: c[1],
     normalAngle: Math.atan2(my, mx),
-    trim: trim(p, q),
+    trim: trimValue,
   };
-});
+}
+
+export const BODY_TRIANGLES: ShapeTriangle[] = (() => {
+  const out: ShapeTriangle[] = [];
+  for (let i = 0; i < OUTLINE.length; i++) {
+    const p = OUTLINE[i];
+    const q = OUTLINE[(i + 1) % OUTLINE.length];
+    const r = OUTLINE[(i + 2) % OUTLINE.length];
+    const here = spineIndex(p, q);
+    const next = spineIndex(q, r);
+    out.push(facet(SPINE[here], p, q, trim(p, q)));
+    // Where the fan switches spine point, close the gap at the shared vertex.
+    if (here !== next) out.push(facet(q, SPINE[here], SPINE[next], trim(q, q)));
+  }
+  return out;
+})();
 
 // Short pale horns curving forward off each side of the head.
 export const HORN_TRIANGLES: ShapeTriangle[] = [1, -1].map((s) => ({
@@ -103,5 +128,5 @@ export const HOOF_TRIANGLES: ShapeTriangle[] = [hoof(0.7, 1.05, 0), hoof(0.7, -1
 
 // Whole-model scale (in bisonRadius units' multiplier) so the longer body
 // still reads as about one bison-radius wide.
-export const SHAPE_SCALE = 0.8;
+export const SHAPE_SCALE = 1.15;
 export const HORN_COLOR = 0xe6dcc0;

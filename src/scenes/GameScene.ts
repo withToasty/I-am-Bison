@@ -452,6 +452,7 @@ export class GameScene extends Phaser.Scene {
   private drawBison(delta: number): void {
     const g = this.bisonGraphics;
     g.clear();
+    this.drawBisonShadows(g, [this.wildBison, this.herd.strandedBison, this.herd.bison]);
     this.fillBisonBatch(g, this.wildBison, delta);
     this.fillBisonBatch(g, this.herd.strandedBison, delta);
     this.fillBisonBatch(g, this.herd.bison, delta);
@@ -471,6 +472,37 @@ export class GameScene extends Phaser.Scene {
       this.facetPaletteCache.set(color, palette);
     }
     return palette;
+  }
+
+  // Soft ground shadows, one path for every bison so overlapping shadows
+  // don't darken each other. Drawn under all bodies and offset away from the
+  // light, which grounds the model and makes it read bigger.
+  private drawBisonShadows(g: Phaser.GameObjects.Graphics, lists: Bison[][]): void {
+    const away = GAME_CONFIG.lowPolyLightAngle + Math.PI;
+    const ox = Math.cos(away) * GAME_CONFIG.bisonShadowOffset * GAME_CONFIG.bisonRadius;
+    const oy = Math.sin(away) * GAME_CONFIG.bisonShadowOffset * GAME_CONFIG.bisonRadius;
+    const rx = GAME_CONFIG.bisonRadius * SHAPE_SCALE * 1.7;
+    const ry = GAME_CONFIG.bisonRadius * SHAPE_SCALE * 1.05;
+    const steps = 10;
+    g.beginPath();
+    for (const list of lists) {
+      for (const b of list) {
+        const cos = Math.cos(b.heading);
+        const sin = Math.sin(b.heading);
+        for (let i = 0; i < steps; i++) {
+          const t = (i / steps) * Math.PI * 2;
+          const lx = Math.cos(t) * rx - rx * 0.12;
+          const ly = Math.sin(t) * ry;
+          const x = b.x + ox + lx * cos - ly * sin;
+          const y = b.y + oy + lx * sin + ly * cos;
+          if (i === 0) g.moveTo(x, y);
+          else g.lineTo(x, y);
+        }
+        g.closePath();
+      }
+    }
+    g.fillStyle(0x000000, GAME_CONFIG.bisonShadowAlpha);
+    g.fillPath();
   }
 
   // Low-poly bison model (entities/BisonShape.ts), rotated to each bison's

@@ -29,7 +29,7 @@ export const GAME_CONFIG = {
   // Boids-inspired per-bison behavior
   cohesionForce: 0.6, // spring constant pulling a bison toward the herd center
   separationForce: 300, // px/s^2 repulsion strength at zero distance
-  separationRadius: 24, // preferred spacing before repulsion kicks in
+  separationRadius: 30, // preferred spacing before repulsion kicks in
   alignmentForce: 3.0, // per-second blend rate toward the herd's forward velocity, at full responsiveness
   maxIndividualSpeed: 256, // hard clamp so cohesion/separation can't run away
 
@@ -229,11 +229,13 @@ export const GAME_CONFIG = {
   // direction picks one of these discrete brightness steps (relative to the
   // base color) per facet - flat-shaded, not a smooth gradient.
   lowPolyLightAngle: (-3 * Math.PI) / 4, // fixed "sun" direction, upper-left
-  lowPolyShadeLevels: [-0.22, -0.1, 0, 0.12, 0.24],
+  lowPolyShadeLevels: [-0.3, -0.14, 0, 0.16, 0.32],
   gaitStridesPerPx: 0.011, // run-cycle revolutions per pixel travelled
   gaitHoofSwing: 0.3, // hoof travel along the body axis (bisonRadius units)
   gaitBodyBob: 0.05, // +/- fractional body scale pulse, twice per stride
   gaitSway: 0.07, // side-to-side body sway (bisonRadius units)
+  bisonShadowAlpha: 0.24,
+  bisonShadowOffset: 0.35, // ground-shadow offset away from the light (bisonRadius units)
   bisonTurnEase: 0.2, // fraction of the heading gap closed per frame
   bisonFacingMinSpeed: 6, // below this the model keeps its last facing
 };
