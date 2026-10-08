@@ -19,6 +19,15 @@ export class HUD {
       .setScrollFactor(0);
   }
 
+  // The HUD is scroll-factor 0 but still goes through the camera's zoom,
+  // which scales it toward the screen centre. Undo that so it stays pinned to
+  // the top-left at full size: screen = centre + (pos - centre) * zoom.
+  layout(zoom: number, width: number, height: number): void {
+    const cx = width / 2;
+    const cy = height / 2;
+    this.text.setScale(1 / zoom).setPosition(cx + (16 - cx) / zoom, cy + (16 - cy) / zoom);
+  }
+
   update(herdSize: number, distanceMeters: number): void {
     this.text.setText(`HERD ${herdSize}\n\nDISTANCE ${Math.floor(distanceMeters)}m`);
   }
