@@ -161,6 +161,7 @@ export class GameScene extends Phaser.Scene {
     this.cameras.main.setZoom(GAME_CONFIG.cameraZoomSmall);
 
     this.scale.on("resize", this.handleResize, this);
+    this.layoutScreenSpace();
     this.setupHerdSizeTestKeys();
   }
 
@@ -226,6 +227,7 @@ export class GameScene extends Phaser.Scene {
     this.updateCameraZoom();
     this.updateCameraTarget();
     this.updateGroundBlend();
+    this.layoutScreenSpace();
     this.updateDust(dt);
     for (const river of this.rivers) river.update(dt);
 
@@ -683,9 +685,26 @@ export class GameScene extends Phaser.Scene {
     g.destroy();
   }
 
-  private handleResize(gameSize: Phaser.Structs.Size): void {
-    this.background.setSize(gameSize.width, gameSize.height);
-    this.backgroundBlend.setSize(gameSize.width, gameSize.height);
-    this.devText.setY(gameSize.height - 12);
+  private handleResize(): void {
+    this.layoutScreenSpace();
+  }
+
+  // Screen-pinned objects (ground tiles, HUD, dev text) are scroll-factor 0
+  // but still scaled by the camera zoom around the screen centre, so when the
+  // camera zooms out for a big herd they shrink and leave black borders.
+  // Counter-scale them each frame: a screen point s maps from world position
+  // c + (s - c) / zoom, and anything that must cover the screen grows by
+  // 1 / zoom.
+  private layoutScreenSpace(): void {
+    const zoom = this.cameras.main.zoom;
+    const w = this.scale.width;
+    const h = this.scale.height;
+    const cx = w / 2;
+    const cy = h / 2;
+    for (const layer of [this.background, this.backgroundBlend]) {
+      layer.setSize(w / zoom, h / zoom).setPosition(cx - cx / zoom, cy - cy / zoom);
+    }
+    this.hud.layout(zoom, w, h);
+    this.devText.setScale(1 / zoom).setPosition(cx + (12 - cx) / zoom, cy + (h - 12 - cy) / zoom);
   }
 }
